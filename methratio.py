@@ -1,5 +1,6 @@
 #! /usr/bin/env python
 import sys, time, os, array, optparse
+from itertools import compress
 usage = "usage: %prog [options] BSMAP_MAPPING_FILES"
 parser = optparse.OptionParser(usage=usage)
 
@@ -40,12 +41,21 @@ if len(options.sam_path) > 0:
 def disp(txt, nt=0):
     if not options.quiet: print >> sys.stderr, '[methratio] @%s \t%s' %(time.asctime(), txt)
 
+samFLAGS = 'pPuUrR12sfdS'
+def parseFLAG(intFlag):
+	'''
+	Parse the samtools integer flag into a string format since
+	this feature was removed.
+	'''
+	binFlag = bin(intFlag)[:1:-1]
+	return set(compress(flags,map(int,binFlag)))
+
 if len(options.outfile) == 0: disp("Missing output file name, write to STDOUT.")
 def get_alignment(line):
     col = line.split('\t')
     if sam_format:
         if line[0] == '@': return []
-        flag = col[1] 
+        flag = parseFLAG(int(col[1]))
         if 'u' in flag: return []
         if options.unique and 's' in flag: return []
         if options.pair and 'P' not in flag: return []
@@ -94,9 +104,9 @@ def get_alignment(line):
 pipes = []
 for infile in infiles:
     nline = 0
-    if infile.strip() == '-': sam_format, fin, infile = True, os.popen('%ssamtools view -XSh -' % options.sam_path), 'STDIN'
-    elif infile[-4:].upper() == '.SAM': sam_format, fin = True, os.popen('%ssamtools view -XS %s' % (options.sam_path, infile)) 
-    elif infile[-4:].upper() == '.BAM': sam_format, fin = True, os.popen('%ssamtools view -X %s' % (options.sam_path, infile))
+    if infile.strip() == '-': sam_format, fin, infile = True, os.popen('%ssamtools view -Sh -' % options.sam_path), 'STDIN'
+    elif infile[-4:].upper() == '.SAM': sam_format, fin = True, os.popen('%ssamtools view -S %s' % (options.sam_path, infile)) 
+    elif infile[-4:].upper() == '.BAM': sam_format, fin = True, os.popen('%ssamtools view %s' % (options.sam_path, infile))
     else: sam_format, fin = False, open(infile)
     pipes.append((sam_format,fin))
 
