@@ -48,7 +48,7 @@ def parseFLAG(intFlag):
 	this feature was removed.
 	'''
 	binFlag = bin(intFlag)[:1:-1]
-	return set(compress(flags,map(int,binFlag)))
+	return set(compress(samFLAGS,map(int,binFlag)))
 
 if len(options.outfile) == 0: disp("Missing output file name, write to STDOUT.")
 def get_alignment(line):
