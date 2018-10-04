@@ -31,7 +31,13 @@ test_data/simulated.fastq.gz: | test_data/simulated.fastq
 	# Create compressed input
 	gzip -c $| > $@
 # Test aligner
-test_data/simulated.%am: test_data/simulated.fastq bsmapz
+test_data/simulated.sam: test_data/simulated.fastq bsmapz
+	./bsmapz -a $< -z 33 -p 2 -q 20 -d $(REF) -S 77345 -w 10000 -o $@ 2> $@.log
+	@echo Finished aligning $@
+test_data/simulated.sam.bam: test_data/simulated.sam
+	samtools view -bS $< | samtools sort -o $@
+	samtools index $@
+test_data/simulated.bam: test_data/simulated.fastq bsmapz
 	./bsmapz -a $< -z 33 -p 2 -q 20 -d $(REF) -S 77345 -w 10000 -o $@ 2> $@.log
 	@echo Finished aligning $@
 test_data/simulated.bsp: test_data/simulated.fastq.gz bsmapz
@@ -40,13 +46,13 @@ test_data/simulated.bsp: test_data/simulated.fastq.gz bsmapz
 	@echo Finished aligning $@
 # Test methratio
 test_data/simulated.%.mr: test_data/simulated.%
-	python methratio.py -z -r -d $(REF) -o $@ $< 2> $@.log
+	python methratio.py -z -r -d $(REF) -o $@ $<
 	rm $<
 	@echo Finished creating $@
 
 
 REF_MR = test_data/original.mr
-MR = test_data/simulated.sam.mr test_data/simulated.bam.mr test_data/simulated.bsp.mr
+MR = test_data/simulated.sam.mr test_data/simulated.bam.mr test_data/simulated.bsp.mr test_data/simulated.sam.bam.mr
 .SILENT: test
 test: bsmapz $(MR)
 	@echo Comparing methratio outputs
@@ -57,7 +63,6 @@ test: bsmapz $(MR)
 			fi; \
 		done; \
 	done; \
-	rm $(MR) test_data/*log
 
 clean:
 	rm -f *.o *~ bsmapz

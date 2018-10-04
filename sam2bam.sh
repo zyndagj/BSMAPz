@@ -10,7 +10,7 @@ if [ ! -f $1 ]; then
 	echo "$1 does not exist."
 	exit 1
 fi
-samtools/samtools view -bS $1 > $tmpbam
+samtools view -bS $1 > $tmpbam
 if [ $? -ne 0 ]; then
 	echo "SAM2BAM conversion not sucessful."
 	echo "$1 remains unchanged."
@@ -18,7 +18,7 @@ if [ $? -ne 0 ]; then
 	exit 1
 fi
 echo "Sorting BAM ..."
-samtools/samtools sort $tmpbam ${outbam%.*}
+samtools sort -o $tmpbam ${outbam%.*}
 if [ $? -ne 0 ]; then
 	echo "BAM file sorting not sucessful."
 	echo "$outbam is in unsorted BAM format".
@@ -27,7 +27,7 @@ if [ $? -ne 0 ]; then
 fi
 rm $tmpbam
 echo "Indexing BAM ..."
-samtools/samtools index $outbam
+samtools index $outbam
 if [ $? -ne 0 ]; then
 	echo "BAM file indexing not sucessful."
 	exit 1
