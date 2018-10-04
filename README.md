@@ -44,7 +44,11 @@ BSMAPz is under [GNU Public License (GPL)](GPL_3.0.txt).
 BSMAPz is designed for linux64 platform, and has been tested on
 
 * Mac OSX
-* Linux x86_64
+* Linux x86-64
+
+Requirements:
+
+* samtools (on PATH)
 
 First, clone the source code:
 ```
@@ -64,10 +68,16 @@ Test the code:
 ```
 make test
 ```
+all tests should result in an "OK" status. If not, please submit an issue describing your system.
 
 Install the binary into system default path: (optional)
 ```
 make install
+```
+or a custom location
+```
+mkdir -p /opt/bsmapz
+make DESTDIR=/opt/bsmapz install
 ```
 
 ## Usage
