@@ -47,7 +47,7 @@ test_data/simulated.bsp: test_data/simulated.fastq.gz bsmapz
 # Test methratio
 test_data/simulated.%.mr: test_data/simulated.%
 	python methratio.py -z -r -d $(REF) -o $@ $<
-	rm $<
+	#rm $<
 	@echo Finished creating $@
 
 
