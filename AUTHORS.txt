@@ -1,0 +1,17 @@
+History & Authorship of BSMAPz:
+
+
+BSMAPz is an updated and optimized version of BSMAP.
+
+BSMAPz was written by Greg Zynda, and adapted from BSMAP, which
+was written by Yuanxin Xi and Wei Li.
+
+
+If you make use of the this package, please credit the authors
+as follows:
+
+Please acknowledge use of this program by name.
+
+Please also cite the original BSMAP paper:
+	Yuanxin Xi and Wei Li, "BSMAP: whole genome bisulfite
+sequence MAPping program" (2009) BMC Bioinformatics 2009, 10:232

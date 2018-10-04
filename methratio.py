@@ -5,13 +5,13 @@ usage = "usage: %prog [options] BSMAP_MAPPING_FILES"
 parser = optparse.OptionParser(usage=usage)
 
 parser.add_option("-o", "--out", dest="outfile", metavar="FILE", help="output methylation ratio file name. [default: STDOUT]", default="")
-parser.add_option("-O", "--alignment-copy", dest="alignfile", metavar="FILE", help="save a copy of input alignment for BSMAP pipe input. (in BAM format) [default: none]", default="")
+parser.add_option("-O", "--alignment-copy", dest="alignfile", metavar="FILE", help="save a copy of input alignment for BSMAPz pipe input. (in BAM format) [default: none]", default="")
 parser.add_option("-w", "--wig", dest="wigfile", metavar="FILE", help="output methylation ratio wiggle file. [default: none]", default="")
 parser.add_option("-b", "--wig-bin", dest="wigbin", type="int", metavar='BIN', help="wiggle file bin size. [default: 25]", default=25)
 parser.add_option("-d", "--ref", dest="reffile", metavar="FILE", help="reference genome fasta file. (required)", default="")
 parser.add_option("-c", "--chr", dest="chroms", metavar="CHR", help="process only specified chromosomes, separated by ','. [default: all]\nexample: --chroms=chr1,chr2", default=[])
 parser.add_option("-s", "--sam-path", dest="sam_path", metavar="PATH", help="path to samtools. [default: none]", default='')
-parser.add_option("-u", "--unique", action="store_true", dest="unique", help="process only unique mappings/pairs.", default=False)                                    
+parser.add_option("-u", "--unique", action="store_true", dest="unique", help="process only unique mappings/pairs.", default=False)
 parser.add_option("-p", "--pair", action="store_true", dest="pair", help="process only properly paired mappings.", default=False)
 parser.add_option("-z", "--zero-meth", action="store_true", dest="meth0", help="report loci with zero methylation ratios. (depreciated, -z will be always enabled)", default=True)
 parser.add_option("-q", "--quiet", action="store_true", dest="quiet", help="don't print progress on stderr.", default=False)
@@ -26,7 +26,7 @@ parser.add_option("-x", "--context", dest="context", metavar='TYPE', help="methy
 options, infiles = parser.parse_args()
 
 if len(options.reffile) == 0: parser.error("Missing reference file, use -d or --ref option.")
-if len(infiles) == 0: parser.error("Require at least one BSMAP_MAPPING_FILE.") 
+if len(infiles) == 0: parser.error("Require at least one BSMAP_MAPPING_FILE.")
 if len(options.chroms) > 0: options.chroms = options.chroms.split(',')
 CT_SNP_val = {"no-action": 0, "correct": 1, "skip": 2}
 try: options.CT_SNP = CT_SNP_val[options.CT_SNP.lower()]
@@ -35,11 +35,11 @@ if options.min_depth <= 0: parser.error('Invalid -m value, must >= 1')
 if options.trim_fillin < 0: parser.error('Invalid -t value, must >= 0')
 if len(options.context) > 0: options.context = options.context.split(',')
 
-if len(options.sam_path) > 0: 
+if len(options.sam_path) > 0:
     if options.sam_path[-1] != '/': options.sam_path += '/'
 
 def disp(txt, nt=0):
-    if not options.quiet: print >> sys.stderr, '[methratio] @%s \t%s' %(time.asctime(), txt)
+    if not options.quiet: print('[methratio] @%s \t%s' %(time.asctime(), txt), file=sys.stderr)
 
 samFLAGS = 'pPuUrR12sfdS'
 def parseFLAG(intFlag):
@@ -72,8 +72,8 @@ def get_alignment(line):
                 break
             if sep == 'M': gap_pos += gap_size
             elif sep == 'I': seq = seq[:gap_pos] + seq[gap_pos+gap_size:]
-            elif sep == 'D': 
-                seq = seq[:gap_pos] + '-' * gap_size + seq[gap_pos:]                        
+            elif sep == 'D':
+                seq = seq[:gap_pos] + '-' * gap_size + seq[gap_pos:]
                 gap_pos += gap_size
             cigar = cigar[cigar.index(sep)+1:]
     else:
@@ -105,7 +105,7 @@ pipes = []
 for infile in infiles:
     nline = 0
     if infile.strip() == '-': sam_format, fin, infile = True, os.popen('%ssamtools view -Sh -' % options.sam_path), 'STDIN'
-    elif infile[-4:].upper() == '.SAM': sam_format, fin = True, os.popen('%ssamtools view -S %s' % (options.sam_path, infile)) 
+    elif infile[-4:].upper() == '.SAM': sam_format, fin = True, os.popen('%ssamtools view -S %s' % (options.sam_path, infile))
     elif infile[-4:].upper() == '.BAM': sam_format, fin = True, os.popen('%ssamtools view %s' % (options.sam_path, infile))
     else: sam_format, fin = False, open(infile)
     pipes.append((sam_format,fin))
@@ -114,8 +114,8 @@ for infile in infiles:
 ref, cr, seq = {}, '', ''
 disp('loading reference file: %s ...' % options.reffile)
 for line in open(options.reffile):
-    if line[0] == '>': 
-        if len(cr) > 0: 
+    if line[0] == '>':
+        if len(cr) > 0:
             if len(options.chroms) == 0 or cr in options.chroms: ref[cr] = seq.upper()
         cr, seq = line[1:-1].split()[0], ''
     else: seq += line.strip()
@@ -153,7 +153,7 @@ for sam_format, fin in pipes:
         match, convert, rc_match, rc_convert = BS_conversion[strand]
         index = refseq.find(match, pos, pos2)
         while index >= 0:
-            if seq[index-pos] == convert: 
+            if seq[index-pos] == convert:
                 try: depthcr[index] += 1
                 except OverflowError: depthcr[index] = 65535
             elif seq[index-pos] == match and depthcr[index] < 65535:
@@ -165,14 +165,14 @@ for sam_format, fin in pipes:
         depthcr1 = depth1[cr]
         index = refseq.find(rc_match, pos, pos2)
         while index >= 0:
-            if seq[index-pos] == rc_convert: 
+            if seq[index-pos] == rc_convert:
                 try: depthcr1[index] += 1
                 except OverflowError: depthcr1[index] = 65535
-            elif seq[index-pos] == rc_match and depthcr1[index] < 65535: 
+            elif seq[index-pos] == rc_match and depthcr1[index] < 65535:
                 depthcr1[index] += 1
                 methcr1[index] += 1
             index = refseq.find(rc_match, index+1, pos2)
-    
+
     fin.close()
     if len(options.alignfile) > 0: pout.close()
 
@@ -184,19 +184,19 @@ if options.combine_CpG:
         if options.CT_SNP > 0: depthcr1, methcr1 = depth1[cr], meth1[cr]
         pos = refcr.find('CG')
         while pos >= 0:
-            try: 
+            try:
                 depthcr[pos] += depthcr[pos+1]
                 methcr[pos] += methcr[pos+1]
-            except OverflowError: 
+            except OverflowError:
                 depthcr[pos] = (depthcr[pos] + depthcr[pos+1]) / 2
                 methcr[pos] = (methcr[pos] + methcr[pos+1]) / 2
             depthcr[pos+1] = 0
             methcr[pos+1] = 0
             if options.CT_SNP > 0:
-                try: 
+                try:
                     depthcr1[pos] += depthcr1[pos+1]
                     methcr1[pos] += methcr1[pos+1]
-                except OverflowError: 
+                except OverflowError:
                     depthcr1[pos] = (depthcr1[pos] + depthcr1[pos+1]) / 2
                     methcr1[pos] = (methcr1[pos] + methcr1[pos+1]) / 2
             pos = refcr.find('CG', pos+2)
@@ -204,10 +204,10 @@ if options.combine_CpG:
 if len(options.outfile) == 0: fout, outfile = sys.stdout, 'STDOUT'
 else: fout = open(options.outfile, 'w')
 disp('writing %s ...' % options.outfile)
-if options.wigfile: 
+if options.wigfile:
     fwig = open(options.wigfile, 'w')
     fwig.write('track type=wiggle_0\n')
-if not options.no_header: 
+if not options.no_header:
     fout.write('chr\tpos\tstrand\tcontext\tratio\teff_CT_count\tC_count\tCT_count\trev_G_count\trev_GA_count\tCI_lower\tCI_upper\n')
 z95, z95sq = 1.96, 1.96 * 1.96
 nc, nd, dep0 = 0, 0, options.min_depth
@@ -219,7 +219,7 @@ for cr in sorted(depth.keys()):
         bin = wigd = wigm = 0
     for i, dd in enumerate(depthcr):
         if dd < dep0: continue
-        if options.CT_SNP > 0: 
+        if options.CT_SNP > 0:
             m1, d1 = methcr1[i], depthcr1[i]
             if m1 != d1:
                 if options.CT_SNP == 2: continue
@@ -252,7 +252,7 @@ for cr in sorted(depth.keys()):
             if i / options.wigbin != bin:
                 if wigd > 0: fwig.write('%d\t%.3f\n' % (bin*options.wigbin+1, min(wigm/wigd,1)))
                 bin = i / options.wigbin
-                wigd = wigm = 0.  
+                wigd = wigm = 0.
             wigd += d
             wigm += m
         pmid = ratio + z95sq / (2 * d)
@@ -261,7 +261,7 @@ for cr in sorted(depth.keys()):
         CIl, CIu = (pmid - sd) / denorminator, (pmid + sd) / denorminator
         if options.CT_SNP: fout.write('%s\t%d\t%c\t%s\t%.3f\t%.2f\t%d\t%d\t%d\t%d\t%.3f\t%.3f\n' % (cr, i+1, strand, seq, ratio, d, m, dd, m1, d1, CIl, CIu))
         else: fout.write('%s\t%d\t%c\t%s\t%.3f\t%.2f\t%d\t%d\tNA\tNA\t%.3f\t%.3f\n' % (cr, i+1, strand, seq, ratio, d, m, dd, CIl, CIu))
-                            
+
 if options.outfile != 'STDOUT': fout.close()
 if options.wigfile: fwig.close()
 disp('total %d valid mappings, %d covered cytosines, average coverage: %.2f fold.' % (nmap, nc, float(nd)/nc))

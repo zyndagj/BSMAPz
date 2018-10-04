@@ -36,7 +36,7 @@ ifstream fin_b; igzstream gzfin_b;
 ofstream fout;
 FILE *pout;
 ReadClass read_a, read_b;
-RefSeq ref;
+RefSeq refseq_ref;
 
 bit32_t n_aligned=0, n_unique=0, n_multiple=0;   //number of reads aligned
 bit32_t n_aligned_pairs=0, n_unique_pairs=0, n_multiple_pairs=0;  //number of pairs aligned
@@ -44,7 +44,7 @@ bit32_t n_aligned_a=0, n_unique_a=0, n_multiple_a=0;  //number of a reads aligne
 bit32_t n_aligned_b=0, n_unique_b=0, n_multiple_b=0;  //number of b reads aligned
 bit32_t ref_time, read_time;
 bit16_t tid[64];
-char version[] = "2.90";
+char version[] = "1.0";
 ostringstream message;
 
 void info(int level) {
@@ -67,12 +67,12 @@ void *t_SingleAlign(void *tid) {
 		a.ImportBatchReads(read_a.num, read_a.mreads);
 		pthread_mutex_unlock(&mutex_fin);
 		if(!n) break;
-		a.Do_Batch(ref);
+		a.Do_Batch(refseq_ref);
 		pthread_mutex_lock(&mutex_fout);
 		if(param.stdout) cout<<a._str_align; 
 		else if(param.pipe_out) {fwrite(a._str_align.c_str(),1,a._str_align.size(),pout); fflush(pout);}
 		else fout<<a._str_align;
-		message<<"[bsmap] @"<<Curr_Time()<<" \t"<<cur_at-param.read_start+1<<" reads finished. "<<Cal_AllTime()<<" secs passed"<<endl; info(2);
+		message<<"[bsmapz] @"<<Curr_Time()<<" \t"<<cur_at-param.read_start+1<<" reads finished. "<<Cal_AllTime()<<" secs passed"<<endl; info(2);
 		pthread_mutex_unlock(&mutex_fout);
 	}
 	pthread_mutex_lock(&mutex_fout);
@@ -103,12 +103,12 @@ void *t_PairAlign(void *tid) {
 		a.ImportBatchReads(n1, read_a.mreads, read_b.mreads);
 		pthread_mutex_unlock(&mutex_fin);
 		if(!n1||(n1!=n2)) break;
-		a.Do_Batch(ref);
+		a.Do_Batch(refseq_ref);
 		pthread_mutex_lock(&mutex_fout);
 		if(param.stdout) cout<<a._str_align; 
 		else if(param.pipe_out) {fwrite(a._str_align.c_str(),1,a._str_align.size(),pout); fflush(pout);}
 		else fout<<a._str_align;
-		message<<"[bsmap] @"<<Curr_Time()<<" \t"<<cur_at-param.read_start+1<<" read pairs finished. "<<Cal_AllTime()<<" secs passed"<<endl;info(2);
+		message<<"[bsmapz] @"<<Curr_Time()<<" \t"<<cur_at-param.read_start+1<<" read pairs finished. "<<Cal_AllTime()<<" secs passed"<<endl;info(2);
 		pthread_mutex_unlock(&mutex_fout);		
 	}
 	pthread_mutex_lock(&mutex_fout);
@@ -131,26 +131,26 @@ void Do_PairAlign() {
 	for(int i=0; i<param.num_procs; i++) pthread_join(pthread_ids[i], NULL);
 };
 
-void* wrapper_CalKmerFreq0(void*) {ref.t_CalKmerFreq(0); return NULL;}
-void* wrapper_CalKmerFreq1(void*) {ref.t_CalKmerFreq(1); return NULL;}
-void* wrapper_FillIndex0(void*) {ref.t_FillIndex(0); return NULL;}
-void* wrapper_FillIndex1(void*) {ref.t_FillIndex(1); return NULL;}
+void* wrapper_CalKmerFreq0(void*) {refseq_ref.t_CalKmerFreq(0); return NULL;}
+void* wrapper_CalKmerFreq1(void*) {refseq_ref.t_CalKmerFreq(1); return NULL;}
+void* wrapper_FillIndex0(void*) {refseq_ref.t_FillIndex(0); return NULL;}
+void* wrapper_FillIndex1(void*) {refseq_ref.t_FillIndex(1); return NULL;}
 
 void Do_Formatdb() {
-	if(param.RRBS_flag) ref.CreateIndex();
+	if(param.RRBS_flag) refseq_ref.CreateIndex();
 	else {
 		pthread_t t0, t1;
-		ref.InitialIndex();
+		refseq_ref.InitialIndex();
 		pthread_create(&t0, NULL, wrapper_CalKmerFreq0, NULL);
 		pthread_create(&t1, NULL, wrapper_CalKmerFreq1, NULL);
 		pthread_join(t0, NULL); pthread_join(t1, NULL);
-		ref.AllocIndex();
+		refseq_ref.AllocIndex();
 		pthread_create(&t0, NULL, wrapper_FillIndex0, NULL);
 		pthread_create(&t1, NULL, wrapper_FillIndex1, NULL);
 		pthread_join(t0, NULL); pthread_join(t1, NULL);
-		ref.FinishIndex();
+		refseq_ref.FinishIndex();
 	}
-	message<<"[bsmap] @"<<Curr_Time()<<" \tcreate seed table. "<<Cal_AllTime()<<" secs passed\n"; info(1);
+	message<<"[bsmapz] @"<<Curr_Time()<<" \tcreate seed table. "<<Cal_AllTime()<<" secs passed\n"; info(1);
 };
 
 #else
@@ -158,11 +158,11 @@ void Do_SingleAlign() {
 	SingleAlign a;
 	while(read_a.LoadBatchReads(fin_a,gzfin_a,0)) {
 		a.ImportBatchReads(read_a.num, read_a.mreads);
-		a.Do_Batch(ref);
+		a.Do_Batch(refseq_ref);
 		if(param.stdout) cout<<a._str_align; 
 		else if(param.pipe_out) {fwrite(a._str_align.c_str(),1,a._str_align.size(),pout); fflush(pout);}
 		else fout<<a._str_align;
-		message<<"[bsmap] @"<<Curr_Time()<<" \t"<<read_a._index-param.read_start+1<<" reads finished. "<<Cal_AllTime()<<" secs passed"<<endl; info(2);
+		message<<"[bsmapz] @"<<Curr_Time()<<" \t"<<read_a._index-param.read_start+1<<" reads finished. "<<Cal_AllTime()<<" secs passed"<<endl; info(2);
 	}
 	n_aligned=a.n_aligned; n_unique=a.n_unique; n_multiple=a.n_multiple;	
 	read_time+=Cal_AllTime()-ref_time;
@@ -177,11 +177,11 @@ void Do_PairAlign() {
 		if(!n1||(n1!=n2))
 			break;
 		a.ImportBatchReads(n1, read_a.mreads, read_b.mreads);
-		a.Do_Batch(ref);		
+		a.Do_Batch(refseq_ref);		
 		if(param.stdout) cout<<a._str_align; 
 		else if(param.pipe_out) {fwrite(a._str_align.c_str(),1,a._str_align.size(),pout); fflush(pout);}
 		else fout<<a._str_align;
-		message<<"[bsmap] @"<<Curr_Time()<<" \t"<<read_a._index-param.read_start+1<<" read pairs finished. "<<Cal_AllTime()<<" secs passed"<<endl; info(2);
+		message<<"[bsmapz] @"<<Curr_Time()<<" \t"<<read_a._index-param.read_start+1<<" read pairs finished. "<<Cal_AllTime()<<" secs passed"<<endl; info(2);
 	}	
 
     n_aligned_pairs+=a.n_aligned_pairs; n_unique_pairs+=a.n_unique_pairs; n_multiple_pairs+=a.n_multiple_pairs;
@@ -191,8 +191,8 @@ void Do_PairAlign() {
 };
 
 void Do_Formatdb() {
-	ref.CreateIndex();
-	message<<"[bsmap] @"<<Curr_Time()<<" \tcreate seed table. "<<Cal_AllTime()<<" secs passed\n"; info(1);
+	refseq_ref.CreateIndex();
+	message<<"[bsmapz] @"<<Curr_Time()<<" \tcreate seed table. "<<Cal_AllTime()<<" secs passed\n"; info(1);
 };
 
 #endif
@@ -200,7 +200,7 @@ void Do_Formatdb() {
 //usage
 void usage(void)
 {
-cerr<<"Usage:	bsmap [options]\n"
+cerr<<"Usage:	bsmapz [options]\n"
 		<<"       -a  <str>   query a file, FASTA/FASTQ/BAM format\n"
 		<<"       -d  <str>   reference sequences file, FASTA format\n"
 		<<"       -o  <str>   output alignment file, BSP/SAM/BAM format, if omitted, the output will be written to STDOUT in SAM format.\n"
@@ -210,7 +210,7 @@ cerr<<"Usage:	bsmap [options]\n"
 		<<"                   otherwise it's interpreted as the maximum number of mismatches allowed on a read, <="<<MAXSNPS<<".\n"
 		<<"                   example: -v 5 (max #mismatches = 5), -v 0.1 (max #mismatches = read_length * 10%)\n" 
 		<<"                   default="<<(param.max_snp_num-100)/100.0<<".\n"
-		<<"       -g  <int>   gap size, BSMAP only allow 1 continuous gap (insert or deletion) with up to "<<MAXGAPS<<" nucleotides\n"
+		<<"       -g  <int>   gap size, BSMAPz only allows 1 continuous gap (insert or deletion) with up to "<<MAXGAPS<<" nucleotides\n"
 		<<"                   default="<<param.gap<<"\n"
 		<<"       -w  <int>   maximum number of equal best hits to count, <="<<MAXHITS<<"\n"
 		<<"       -3          using 3-nucleotide mapping approach\n" 
@@ -440,7 +440,7 @@ void RunProcess(void) {
 	string err_msg;
 	//pair-end alignment    
 	if(param.pairend) {
-		message<<"[bsmap] @"<<Curr_Time()<<" \tPair-end alignment("<<param.num_procs<<" threads),"; info(1);
+		message<<"[bsmapz] @"<<Curr_Time()<<" \tPair-end alignment("<<param.num_procs<<" threads),"; info(1);
 		message<<" \tstart from read pair #"<<param.read_start;
 		if(~param.read_end) message<<" \tend at read pair #"<<param.read_end; info(2); message<<endl; info(1);
 		err_msg="failed to open read file #1 (check -a option): ";
@@ -484,8 +484,8 @@ void RunProcess(void) {
 		}
 
 		if(param.out_sam&&param.sam_header) {
-			for(bit32_t i=0;i<ref.total_num;i++){
-				sprintf(_ch,"@SQ\tSN:%s\tLN:%u\n",ref.title[i<<1].name.c_str(),ref.title[i<<1].size);
+			for(bit32_t i=0;i<refseq_ref.total_num;i++){
+				sprintf(_ch,"@SQ\tSN:%s\tLN:%u\n",refseq_ref.title[i<<1].name.c_str(),refseq_ref.title[i<<1].size);
 				_str.append(_ch);
 			}
 			sprintf(_ch,"@PG\tID:BSMAP\tVN:%s\tCL:\"%s\"\n",version,command_line.c_str()); _str.append(_ch);
@@ -503,7 +503,7 @@ void RunProcess(void) {
         }
     
         message<<fixed<<setw(4)<<setprecision(1);
-        message<<"[bsmap] @"<<Curr_Time()<<" \ttotal read pairs: "<<read_a._index-param.read_start+1<<" \ttotal time consumed:  "<<Cal_AllTime()<<" secs\n";
+        message<<"[bsmapz] @"<<Curr_Time()<<" \ttotal read pairs: "<<read_a._index-param.read_start+1<<" \ttotal time consumed:  "<<Cal_AllTime()<<" secs\n";
 		message<<"\taligned pairs: "<<n_aligned_pairs<<" ("<<100.0*n_aligned_pairs/(read_a._index-param.read_start+1)<<"%), ";
 		message<<"unique pairs: "<<n_unique_pairs<<" ("<<100.0*n_unique_pairs/(read_a._index-param.read_start+1)<<"%), ";
 		if(param.report_repeat_hits==0) message<<"suppressed ";
@@ -522,7 +522,7 @@ void RunProcess(void) {
 	}
 	//single-read alignment
 	else {
-		message<<"[bsmap] @"<<Curr_Time()<<" \tSingle-end alignment("<<param.num_procs<<" threads),"; info(1);
+		message<<"[bsmapz] @"<<Curr_Time()<<" \tSingle-end alignment("<<param.num_procs<<" threads),"; info(1);
         message<<" \tstart from read #"<<param.read_start;
 		if(~param.read_end) message<<" \tend at read #"<<param.read_end; info(2); cerr<<endl; info(1);
         err_msg="failed to open read file (check -a option): ";
@@ -555,8 +555,8 @@ void RunProcess(void) {
                                                 		
 		if(param.out_sam&&param.sam_header) {
     		char _ch[1000];
-	    	for(bit32_t i=0;i<ref.total_num;i++) {
-	    	    sprintf(_ch,"@SQ\tSN:%s\tLN:%u\n",ref.title[i<<1].name.c_str(),ref.title[i<<1].size);
+	    	for(bit32_t i=0;i<refseq_ref.total_num;i++) {
+	    	    sprintf(_ch,"@SQ\tSN:%s\tLN:%u\n",refseq_ref.title[i<<1].name.c_str(),refseq_ref.title[i<<1].size);
 	    	    _str.append(_ch);
 	    	}
 			sprintf(_ch,"@PG\tID:BSMAP\tVN:%s\tCL:\"%s\"\n",version,command_line.c_str()); _str.append(_ch);
@@ -573,7 +573,7 @@ void RunProcess(void) {
             samclose(read_a.SAM_fp);
         }
         message<<fixed<<setw(4)<<setprecision(1);
-        message<<"[bsmap] @"<<Curr_Time()<<" \ttotal reads: "<<read_a._index-param.read_start+1<<" \ttotal time:  "<<Cal_AllTime()<<" secs\n";
+        message<<"[bsmapz] @"<<Curr_Time()<<" \ttotal reads: "<<read_a._index-param.read_start+1<<" \ttotal time:  "<<Cal_AllTime()<<" secs\n";
 		message<<"\taligned reads: "<<n_aligned<<" ("<<100.0*n_aligned/(read_a._index-param.read_start+1)<<"%), ";
 		message<<"unique reads: "<<n_unique<<" ("<<100.0*n_unique/(read_a._index-param.read_start+1)<<"%), ";  
 		if(param.report_repeat_hits==0) message<<"suppressed ";
@@ -591,9 +591,9 @@ int main(int argc, char *argv[]) {
         cerr<<"unknown option: "<<argv[noptions]<<endl;
         exit(noptions);
     }
-    message<<"\nBSMAP v"<<version<<endl; info(2); srand(time(NULL));
+    message<<"\nBSMAPz v"<<version<<endl; info(2); srand(time(NULL));
 	string err_msg="failed to open reference file (check -d option): ";
-	message<<"[bsmap] @"<<Curr_Time()<<" \tloading reference file: "<<ref_file; info(1);
+	message<<"[bsmapz] @"<<Curr_Time()<<" \tloading reference file: "<<ref_file; info(1);
 	param.gz_ref=check_ifile(ref_file, err_msg);
 	if(check_ifile_format(ref_file, param.gz_ref)) {
 		cerr<<"reference must be in FASTA format.\n";
@@ -602,8 +602,8 @@ int main(int argc, char *argv[]) {
 	if(param.gz_ref) gzfin_db.open(ref_file.c_str());
 	else fin_db.open(ref_file.c_str());
 
-	ref.Run_ConvertBinseq(fin_db, gzfin_db);
-	message<<"[bsmap] @"<<Curr_Time()<<" \t"<<ref.total_num<<" reference seqs loaded, total size "<<ref.sum_length<<" bp. "<<Cal_AllTime()<<" secs passed"<<endl;
+	refseq_ref.Run_ConvertBinseq(fin_db, gzfin_db);
+	message<<"[bsmapz] @"<<Curr_Time()<<" \t"<<refseq_ref.total_num<<" reference seqs loaded, total size "<<refseq_ref.sum_length<<" bp. "<<Cal_AllTime()<<" secs passed"<<endl;
 	info(1);			
 	Do_Formatdb(); ref_time=Cal_AllTime(); read_time=0;
 	RunProcess(); 
@@ -622,10 +622,10 @@ int main(int argc, char *argv[]) {
 		    system(sys_cmd);
 		} 
 		else {
-		    message<<"[bsmap] warning: cannot get absolute path for sam2bam.sh input. alignment file remains in SAM format.\n"; 
+		    message<<"[bsmapz] warning: cannot get absolute path for sam2bam.sh input. alignment file remains in SAM format.\n"; 
 		}
 	}
 	info(1);
-    ref.ReleaseIndex();
+    refseq_ref.ReleaseIndex();
 	return 0;
 }
