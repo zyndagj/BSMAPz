@@ -1,12 +1,15 @@
 ##################################
 BSMAPz
 ##################################
-10-03-2018
+10-04-2018
 release 1.0
 1. Patched samtools and main.cpp to for compatibility on OSX
 2. Updated README
 3. Patched methratio.py for compatibility with modern samtools
 4. Added test target in Makefile
+5. Fixed parallel methratio.py bug
+6. Validated methratio.py for all input types
+7. methratio.py will automatically process chromosomes in parallel and use less memory
 
 ##################################
 BSMAP
