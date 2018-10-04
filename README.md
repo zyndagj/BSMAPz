@@ -49,6 +49,7 @@ BSMAPz is designed for linux64 platform, and has been tested on
 Requirements:
 
 * samtools (on PATH)
+* pysam
 
 First, clone the source code:
 ```
@@ -307,6 +308,8 @@ A python script to extract methylation ratios from BSMAPz mapping results.
 
 Requires:
 * python 2.*
+* samtools
+* pysam
 
 For human genome, methratio.py needs ~26GB memory.  
 For systems with limited memory, user can set the `-c/--chr` option to process specified chromosomes only, and combine results for all chromosomes afterwards.
