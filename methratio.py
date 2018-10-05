@@ -39,6 +39,7 @@ import sys, time, os, array, argparse, re
 from itertools import compress, ifilter, izip
 import subprocess as sp
 import multiprocessing as mp
+import multiprocessing.pool
 import pysam
 from string import maketrans
 
@@ -105,22 +106,27 @@ def main():
 	maxMemChrom = 2*largestChromSize*4+largestChromSize
 	maxMemChromMB = maxMemChrom/(1024**2)
 	if options.mem < maxMemChromMB: sys.exit("methratio.py needs at least %i MB of memory to process this reference\n"%(maxMemChromMB))
-	maxChromProcs = min(options.mem/maxMemChromMB, options.np, len(chromDict))
+	if maxMemChromMB:
+		maxChromProcs = min(options.mem/maxMemChromMB, options.np, len(chromDict))
+	else:
+		maxChromProcs = min(options.np, len(chromDict))
 	disp("Processing %i chromosomes at a time"%(maxChromProcs))
 	# Create shared array for synchronization
 	global syncArray
 	syncArray = mp.RawArray('B', [0]*len(chromDict))
 	# Create worker pool
-	chromPool = mp.Pool(maxChromProcs)
+	chromPool = ChromPool(maxChromProcs)
 	argList = [(chrom, chromDict[chrom], options, sortedFiles, pid) for pid, chrom in enumerate(sortedChroms)]
 	# Launch workers
 	ret = chromPool.map(chromWorker, argList, chunksize=1)
 	# Close pool
-	ret.close()
-	ret.join()
+	chromPool.close()
+	chromPool.join()
 	# Calculate stats
 	nmap, nc, nd = (0, 0, 0)
 	for sChrom, retList in zip(sortedChroms, ret):
+		if not retList:
+			sys.exit("%s failed to process\n"%(sChrom))
 		cChrom, cNmap, cNc, cNd = retList
 		assert(cChrom == sChrom)
 		nmap += cNmap
@@ -133,6 +139,16 @@ def main():
 		if 'tmpSrt.b' in f:
 			os.remove(f)
 
+# Can't use daemon processes in the main pool
+class NoDaemonProcess(mp.Process):
+	def _get_daemon(self):
+		return False
+	def _set_daemon(self, value):
+		pass
+	daemon = property(_get_daemon, _set_daemon)
+class ChromPool(multiprocessing.pool.Pool):
+    Process = NoDaemonProcess
+
 def sortFile(infile, N=1, M=1000):
 	'''
 	Presorts an input file and returns the temprorary file, which should be deleted afterwards
@@ -141,21 +157,25 @@ def sortFile(infile, N=1, M=1000):
 	if fileEXT == 'BAM':
 		sortedFile = '.'.join(infile.split('.')[:-1]+['tmpSrt','bam'])
 		if bamIsSorted(infile):
+			disp("%s is already sorted"%(infile))
 			return infile
 		else:
 			samSortMem = int(M/N)
-			sp.Popen('samtools sort -m %iM -@ %i -O bam -o %s -T %s_tmp %s'%(samSortMem, N, sortedFile, sortedFile, infile), shell=True, stderr=sp.PIPE)
-			sp.Popen('samtools index %s'%(sortedFile), stderr=sp.PIPE)
+			disp("Calling samtools sort on %s and using %i MB of memory"%(infile, samSortMem))
+			sp.check_call('samtools sort -m %iM -@ %i -O bam -o %s -T %s_tmp %s'%(samSortMem, N, sortedFile, sortedFile, infile), shell=True)
+			sp.check_call('samtools index %s'%(sortedFile), shell=True)
 			return sortedFile
 	elif fileEXT == 'SAM':
 		sortedFile = '.'.join(infile.split('.')[:-1]+['tmpSrt','bam'])
 		samSortMem = int(M/N)
-		sp.Popen('samtools view -uS %s | samtools sort -m %iM -@ %i -O bam -o %s -T %s_tmp'%(infile, samSortMem, N, sortedFile, sortedFile), shell=True, stderr=sp.PIPE)
-		sp.Popen('samtools index %s'%(sortedFile), stderr=sp.PIPE)
+		disp("Calling samtools sort on %s and using %i MB of memory"%(infile, samSortMem))
+		sp.check_call('samtools view -uS %s | samtools sort -m %iM -@ %i -O bam -o %s -T %s_tmp'%(infile, samSortMem, N, sortedFile, sortedFile), shell=True)
+		sp.check_call('samtools index %s'%(sortedFile), shell=True)
 		return sortedFile
 	elif fileEXT == 'BSP':
 		sortedFile = '.'.join(infile.split('.')[:-1]+['tmpSrt','bsp'])
-		sp.Popen('LC_ALL=C sort -k4,4 -k5,5n -k1,1n -S %iM %s > %s'%(M, infile, sortedFile), shell=True, stderr=sp.PIPE)
+		disp("Running manual sort on %s using %i MB of memory"%(infile, M))
+		sp.check_call('LC_ALL=C sort -k4,4 -k5,5n -k1,1n -S %iM %s > %s'%(M, infile, sortedFile), shell=True)
 		return sortedFile
 	else:
 		sys.exit("methratio.py does not handle %s files\n"%(fileEXT))	
@@ -213,7 +233,7 @@ def chromWorker(argList):
 	# read and filter input files
 	for infile in sortedFiles:
 		fileEXT = infile.split('.')[-1].upper()
-		if fileEXT == '.BAM':
+		if fileEXT == 'BAM':
 			# Read SAM with samtools
 			disp("Reading %s from %s with samtools"%(chrom, infile))
 			samflags = "-F 4"
@@ -222,15 +242,17 @@ def chromWorker(argList):
 			if bamIsSorted(infile):
 				fin = sp.Popen("samtools view %s %s %s"%(samflags, infile, chrom), shell=True, stdout=sp.PIPE, stderr=sp.PIPE)
 			else:
-				sys.exit("%s should have been presorted\n"%(infile))
+				disp("%s should have been presorted\n"%(infile))
+				return 0
 			get_alignment = get_sam_alignment
-		elif fileEXT == '.BSP':
+		elif fileEXT == 'BSP':
 			# Read BSP with awk filter
 			disp("Reading %s from %s"%(chrom, infile))
 			fin = sp.Popen("awk '$5 == \"%s\"' %s"%(chrom, infile), shell=True, stdout=sp.PIPE, stderr=sp.PIPE)
 			get_alignment = get_bsp_alignment
 		else:
-			sys.exit("%s should be either presorted bsp or bam\n"%(infile))
+			disp("%s should be either presorted bsp or bam\n"%(infile))
+			return 0
 		for line in ifilter(lambda x: x[0] != "@", fin.stdout):
 			map_info = get_alignment(line, options.unique, options.pair, \
 				options.rm_dup, options.trim_fillin, coverage, chromSize)
@@ -506,7 +528,10 @@ def memAvail(p=0.8):
 	'''
 	Returns a fraction (p) of the free memory in megabytes.
 	'''
-	mem_bytes = os.sysconf('SC_PAGE_SIZE') * os.sysconf('SC_AVPHYS_PAGES')  # e.g. 4015976448
+	try:
+		mem_bytes = os.sysconf('SC_PAGE_SIZE') * os.sysconf('SC_AVPHYS_PAGES')  # e.g. 4015976448
+	except:
+		mem_bytes = int(sp.check_output("vm_stat | grep free | awk '{print $3}'", shell=True).rstrip('.\n'))*4096
 	mem_mb = mem_bytes/(1024.**2)  # e.g. 3.74
 	#mem_gib = mem_bytes/(1024.**3)  # e.g. 3.74
 	return int(mem_mb*p)
