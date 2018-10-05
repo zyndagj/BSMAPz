@@ -2,7 +2,7 @@
 
 ###############################################################################
 # Author: Greg Zynda
-# Last Modified: 10/04/2018
+# Last Modified: 10/05/2018
 ###############################################################################
 # BSD 3-Clause License
 # 
@@ -175,10 +175,14 @@ def sortFile(infile, N=1, M=1000):
 	elif fileEXT == 'BSP':
 		sortedFile = '.'.join(infile.split('.')[:-1]+['tmpSrt','bsp'])
 		disp("Running manual sort on %s using %i MB of memory"%(infile, M))
-		sp.check_call('LC_ALL=C sort -k4,4 -k5,5n -k1,1n -S %iM %s > %s'%(M, infile, sortedFile), shell=True)
+		try:
+			sp.check_call('LC_ALL=C sort --parallel=%i -k4,4 -k5,5n -k1,1n -S %iM %s > %s 2>/dev/null'%(N, M, infile, sortedFile), shell=True)
+		except sp.CalledProcessError as e:
+			disp("Could not sort %s in parallel. Falling back to single core"%(infile))
+			sp.check_call('LC_ALL=C sort -k4,4 -k5,5n -k1,1n -S %iM %s > %s'%(M, infile, sortedFile), shell=True)
 		return sortedFile
 	else:
-		sys.exit("methratio.py does not handle %s files\n"%(fileEXT))	
+		sys.exit("methratio.py does not handle %s files\n"%(fileEXT))
 
 class refcache:
 	def __init__(self, FA, chrom, chromLen, cacheSize=50000):
