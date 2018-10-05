@@ -114,14 +114,17 @@ def main():
 	# Create shared array for synchronization
 	global syncArray
 	syncArray = mp.RawArray('B', [0]*len(chromDict))
-	# Create worker pool
-	chromPool = ChromPool(maxChromProcs)
 	argList = [(chrom, chromDict[chrom], options, sortedFiles, pid) for pid, chrom in enumerate(sortedChroms)]
-	# Launch workers
-	ret = chromPool.map(chromWorker, argList, chunksize=1)
-	# Close pool
-	chromPool.close()
-	chromPool.join()
+	if maxChromProcs > 1:
+		# Create worker pool
+		chromPool = ChromPool(maxChromProcs)
+		# Launch workers
+		ret = chromPool.map(chromWorker, argList, chunksize=1)
+		# Close pool
+		chromPool.close()
+		chromPool.join()
+	else:
+		ret = map(chromWorker, argList)
 	# Calculate stats
 	nmap, nc, nd = (0, 0, 0)
 	for sChrom, retList in zip(sortedChroms, ret):
