@@ -26,7 +26,7 @@ Param::Param()
 	//seed_bits=(1<<(seed_size*2))-1;
 	
 	max_snp_num = 108;
-	max_num_hits = MAXHITS>100?100:MAXHITS;
+	max_num_hits = MAXHITS>1000?1000:MAXHITS;
 	max_kmer_ratio = 5e-7;
 	
 	min_read_size=seed_size;

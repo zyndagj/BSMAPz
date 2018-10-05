@@ -139,7 +139,10 @@ def main():
 	disp('total %i valid mappings, %i covered cytosines, average coverage: %.2f fold.' % (nmap, nc, float(nd)/nc))
 	# Delete temporary files
 	for f in sortedFiles:
-		if 'tmpSrt.b' in f:
+		if 'tmpSrt.bam' in f:
+			os.remove(f)
+			os.remove(f+'.bai')
+		if 'tmpSrt.bsp' in f:
 			os.remove(f)
 
 # Can't use daemon processes in the main pool
@@ -179,10 +182,10 @@ def sortFile(infile, N=1, M=1000):
 		sortedFile = '.'.join(infile.split('.')[:-1]+['tmpSrt','bsp'])
 		disp("Running manual sort on %s using %i MB of memory"%(infile, M))
 		try:
-			sp.check_call('LC_ALL=C sort --parallel=%i -k4,4 -k5,5n -k1,1n -S %iM %s > %s 2>/dev/null'%(N, M, infile, sortedFile), shell=True)
+			sp.check_call('LC_ALL=C sort --parallel=%i -k5,5 -k6,6n -k1,1n -S %iM %s > %s 2>/dev/null'%(N, M, infile, sortedFile), shell=True)
 		except sp.CalledProcessError as e:
 			disp("Could not sort %s in parallel. Falling back to single core"%(infile))
-			sp.check_call('LC_ALL=C sort -k4,4 -k5,5n -k1,1n -S %iM %s > %s'%(M, infile, sortedFile), shell=True)
+			sp.check_call('LC_ALL=C sort -k5,5 -k6,6n -k1,1n -S %iM %s > %s'%(M, infile, sortedFile), shell=True)
 		return sortedFile
 	else:
 		sys.exit("methratio.py does not handle %s files\n"%(fileEXT))
@@ -220,7 +223,7 @@ def chromWorker(argList):
 	# load chrom with pysam
 	FA=pysam.FastaFile(options.reffile)
 	# Create process pool before allocation
-	p = mp.Pool(options.np, initializer=initWorker, initargs=(options, chrom))
+	p = mp.Pool(min(4,options.np), initializer=initWorker, initargs=(options, chrom))
 	# allocate arrays
 	meth = array.array('H',[0])*chromSize
 	depth = array.array('H',[0])*chromSize
