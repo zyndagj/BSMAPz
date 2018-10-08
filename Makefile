@@ -30,7 +30,11 @@ bsmapz: $(OBJS1)
 # Test section
 ##############################################
 REF=test_data/test.fasta
+OS=test_data/original.mr
+OP=test_data/original_paired.mr
 
+.SILENT:
+.PRECIOUS:
 test_data/simulated.fastq.gz: test_data/simulated.fastq
 	gzip -c $< > $@
 test_data/%.sam.bam: test_data/%.sam
@@ -38,30 +42,32 @@ test_data/%.sam.bam: test_data/%.sam
 	samtools index $@ 2>> $@.log
 	@echo OK - converted $< to sorted and indexed BAM
 # Test single end input
-test_data/single.%: test_data/simulated.fastq | bsmapz
+test_data/single.bsp test_data/single.sam test_data/single.bam: test_data/simulated.fastq | bsmapz
 	./bsmapz -a $< -z 33 -p 2 -q 20 -d $(REF) -S 77345 -w 1000 -o $@ 2> $@.log
 	@echo OK - Finished aligning $@
-test_data/single%.mr: test_data/single%
+test_data/single.%.mr: test_data/single.%
 	python methratio.py -z -r -d $(REF) -o $@ $< 2> $@.log
 	@echo OK - Finished calling methylation in $@
-	diff -q original.mr $@
-	@echo OK - $@ matches original.mr
+	diff -q $(OS) $@
+	@echo OK - $@ matches $(OS)
 # Test compressed single end input
-test_data/single_compressed.%: test_data/simulated.fastq.gz | bsmapz
+test_data/single_compressed.bsp test_data/single_compressed.sam test_data/single_compressed.bam: test_data/simulated.fastq.gz | bsmapz
 	./bsmapz -a $< -z 33 -p 2 -q 20 -d $(REF) -S 77345 -w 1000 -o $@ 2> $@.log
 	@echo OK - Finished aligning $@
 # Test paired end input
-test_data/paired.%: | test_data/simulated_1.fastq test_data/simulated_2.fastq bsmapz
+test_data/paired.bsp test_data/paired.sam test_data/paired.bam: | test_data/simulated_1.fastq test_data/simulated_2.fastq bsmapz
 	./bsmapz -a test_data/simulated_1.fastq -b test_data/simulated_2.fastq -z 33 -p 2 -q 20 -d $(REF) -S 77345 -w 1000 -o $@ 2> $@.log
 	@echo OK - Finished aligning $@
-test_data/paired%.mr: test_data/paired%
+test_data/paired.%.mr: test_data/paired.%
 	python methratio.py -z -r -d $(REF) -o $@ $< 2> $@.log
 	@echo OK - Finished calling methylation in $@
-	diff -q original_paired.mr $@
-	@echo OK - $@ matches original_paired.mr
+	diff -q $(OP) $@
+	@echo OK - $@ matches $(OP)
 
-MR = $(shell test_data/{paired,single,single_compressed}.{sam.bam,bam,sam,bsp}.mr)
-test: $(MR) | bsmapz
+MR = $(shell echo test_data/{paired,single,single_compressed}.{sam.bam,bam,sam,bsp}.mr)
+test: | bsmapz $(MR)
+test-clean:
+	rm -f test_data/{single,paired}*
 
 clean:
 	rm -f *.o *~ bsmapz
