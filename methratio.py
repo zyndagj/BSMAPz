@@ -2,7 +2,7 @@
 
 ###############################################################################
 # Author: Greg Zynda
-# Last Modified: 10/05/2018
+# Last Modified: 10/08/2018
 ###############################################################################
 # BSD 3-Clause License
 # 
@@ -138,12 +138,12 @@ def main():
 	# Display stats
 	disp('total %i valid mappings, %i covered cytosines, average coverage: %.2f fold.' % (nmap, nc, float(nd)/nc))
 	# Delete temporary files
-	for f in sortedFiles:
-		if 'tmpSrt.bam' in f:
-			os.remove(f)
-			os.remove(f+'.bai')
-		if 'tmpSrt.bsp' in f:
-			os.remove(f)
+#	for f in sortedFiles:
+#		if 'tmpSrt.bam' in f:
+#			os.remove(f)
+#			os.remove(f+'.bai')
+#		if 'tmpSrt.bsp' in f:
+#			os.remove(f)
 
 # Can't use daemon processes in the main pool
 class NoDaemonProcess(mp.Process):
