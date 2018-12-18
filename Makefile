@@ -45,7 +45,7 @@ test_data/%.sam.bam: test_data/%.sam
 test_data/single.bsp test_data/single.sam test_data/single.bam: test_data/simulated.fastq | bsmapz
 	./bsmapz -a $< -z 33 -p 2 -q 20 -d $(REF) -S 77345 -w 1000 -o $@ 2> $@.log
 	@echo OK - Finished aligning $@
-test_data/single.%.mr: test_data/single.%
+test_data/single%.mr: test_data/single%
 	python methratio.py -z -r -d $(REF) -o $@ $< 2> $@.log
 	@echo OK - Finished calling methylation in $@
 	diff -q $(OS) $@
@@ -61,8 +61,8 @@ test_data/paired.bsp test_data/paired.sam test_data/paired.bam: | test_data/simu
 test_data/paired.%.mr: test_data/paired.%
 	python methratio.py -z -r -d $(REF) -o $@ $< 2> $@.log
 	@echo OK - Finished calling methylation in $@
-	#diff -q $(OP) $@
-	#@echo OK - $@ matches $(OP)
+	diff -q $(OP) $@
+	@echo OK - $@ matches $(OP)
 
 MR = $(shell echo test_data/{paired,single,single_compressed}.{sam.bam,bam,sam,bsp}.mr)
 test: | bsmapz $(MR)
