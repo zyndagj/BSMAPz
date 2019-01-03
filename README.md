@@ -311,8 +311,8 @@ Requires:
 * samtools
 * pysam
 
-For human genome, methratio.py needs ~26GB memory.  
-For systems with limited memory, user can set the `-c/--chr` option to process specified chromosomes only, and combine results for all chromosomes afterwards.
+To extract methylation ratios on the human genome, methratio.py needs about 20GB of memory.
+While methratio.py will no longer overallocate memory and crash, you can also manually limit memory usage with the `-M` parameter when packing concurrent runs.
 
 ```
 usage: methratio.py [-h] [-o FILE] [-w FILE] [-b BIN] -d FILE [-c CHR] [-u]
@@ -388,10 +388,10 @@ python methratio.py -d mm9.fa -o meth.txt -p bsmap_sample1.bsp bsmap_sample2.sam
 python methratio.py -s /home/tools/samtools -t 1 -d arab.fa -o meth.txt bsmap_sample.sam
 ```
 
-> Note: For overlapping paired hits, nucleotides in the overlapped part should be counted only once instead of twice.
+> Note: The original version of methratio.py counted overlapping regions of reads twice when using BSP input. We recommend re-running all methylation extraction if you utilize the BSP format.
 
-methratio.py can correctly handle such cases for SAM format output, but for BSP format it will still be counted twice,
-because the BSP format does not contain mapping information of the mate.
+When read pairs overlap, methratio.py will trim off the overlapping region of the read with the lower index.
+In the future, we hope to analyze both pairs at once so we can employ the `samtools mpileup` method like [MethylDackel](https://github.com/dpryan79/MethylDackel#a-note-on-overlapping-reads).
 
 ### methdiff.py
 
