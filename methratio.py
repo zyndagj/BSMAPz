@@ -2,11 +2,11 @@
 
 ###############################################################################
 # Author: Greg Zynda
-# Last Modified: 10/04/2018
+# Last Modified: 01/03/2019
 ###############################################################################
 # BSD 3-Clause License
 # 
-# Copyright (c) 2018, Texas Advanced Computing Center
+# Copyright (c) 2019, Texas Advanced Computing Center
 # All rights reserved.
 # 
 # Redistribution and use in source and binary forms, with or without
@@ -39,6 +39,7 @@ import sys, time, os, array, argparse, re
 from itertools import compress, ifilter, izip
 import subprocess as sp
 import multiprocessing as mp
+import multiprocessing.pool
 import pysam
 from string import maketrans
 
@@ -49,21 +50,23 @@ def main():
 	parser = argparse.ArgumentParser(description="Calls single-base methylation ratios by context.")
 	parser.add_argument("-o", "--out", dest="outfile", metavar="FILE", help="output methylation ratio file name. [default: STDOUT]", default="")
 	parser.add_argument("-w", "--wig", dest="wigfile", metavar="FILE", help="output methylation ratio wiggle file. [default: none]", default="")
-	parser.add_argument("-b", "--wig-bin", dest="wigbin", type=int, metavar='BIN', help="wiggle file bin size. [default: 25]", default=25)
+	parser.add_argument("-b", "--wig-bin", dest="wigbin", type=int, metavar='BIN', help="wiggle file bin size. [default: %(default)s]", default=25)
 	parser.add_argument("-d", "--ref", dest="reffile", metavar="FILE", help="reference genome fasta file. (required)", required=True)
 	parser.add_argument("-c", "--chroms", metavar="CHR", help="process only specified chromosomes, separated by ','. [default: all]\nexample: --chroms=chr1,chr2", default=[])
 	parser.add_argument("-u", "--unique", action="store_true", dest="unique", help="process only unique mappings/pairs.", default=False)
 	parser.add_argument("-p", "--pair", action="store_true", dest="pair", help="process only properly paired mappings.", default=False)
-	parser.add_argument("-z", "--zero-meth", action="store_true", dest="meth0", help="report loci with zero methylation ratios. (depreciated, -z will be always enabled)", default=True)
+	parser.add_argument("-z", "--zero-meth", action="store_true", dest="meth0", help="report loci with zero methylation ratios. (deprecated, -z will be always enabled)", default=True)
 	parser.add_argument("-q", "--quiet", action="store_true", dest="quiet", help="don't print progress on stderr.", default=False)
 	parser.add_argument("-r", "--remove-duplicate", action="store_true", dest="rm_dup", help="remove duplicated reads.", default=False)
-	parser.add_argument("-t", "--trim-fillin", dest="trim_fillin", type=int, metavar='N', help="trim N end-repairing fill-in nucleotides. [default: 0]", default=0)
+	parser.add_argument("-t", "--trim-fillin", dest="trim_fillin", type=int, metavar='N', help="trim N end-repairing fill-in nucleotides from fragments. [default: %(default)s]", default=0)
 	parser.add_argument("-g", "--combine-CpG", action="store_true", dest="combine_CpG", help="combine CpG methylaion ratios on both strands.", default=False)
-	parser.add_argument("-m", "--min-depth", dest="min_depth", type=int, metavar='FOLD', help="report loci with sequencing depth>=FOLD. [default: 1]", default=1)
+	parser.add_argument("-m", "--min-depth", dest="min_depth", type=int, metavar='FOLD', help="report loci with sequencing depth>=FOLD. [default: %(default)s]", default=1)
 	parser.add_argument("-n", "--no-header", action="store_true", dest="no_header", help="don't print a header line", default=False)
 	parser.add_argument("-i", "--ct-snp", dest="CT_SNP", help='how to handle CT SNP ("no-action", "correct", "skip"), default: "correct".', default="correct")
 	parser.add_argument("-x", "--context", dest="context", metavar='TYPE', help="methylation pattern type [CG|CHG|CHH], multiple types separated by ','. [default: all]", default='')
 	parser.add_argument("-f", "--full", action="store_true", help="Report full context (CHG -> CAG)")
+	parser.add_argument("-M", "--mem", type=int, metavar='MB', help="Maximum memory in megabytes to use [%(default)s]", default=-1)
+	parser.add_argument("-N", "--np", type=int, metavar='NP', help="Maximum number of processes to use [%(default)s]", default=-1)
 	parser.add_argument("infiles", metavar="FILES", help="Files from BSMAP output [BAM|SAM|BSP]", nargs="+")
 	# Parse Options
 	options = parser.parse_args()
@@ -78,6 +81,11 @@ def main():
 	if options.trim_fillin < 0: parser.error('Invalid -t value, must >= 0')
 	if len(options.context) > 0: options.context = options.context.split(',')
 	if len(options.outfile) == 0: disp("Missing output file name, write to STDOUT.")
+	if options.mem < 0:
+		options.mem = memAvail(0.9)
+		disp("Using 90%% of available memory (%i MB) as limit"%(options.mem))
+	if options.mem > memAvail(0.95): sys.exit("Only %i MB available, not %i"%(memAvail(0.95), options.mem))
+	if options.np == -1: options.np = min(mp.cpu_count(), 64)
 	# Parse fasta.fai for chrom lengths
 	if not os.path.exists(options.reffile+'.fai'):
 		disp("Indexing reference")
@@ -93,35 +101,97 @@ def main():
 		fout.write('chr\tpos\tstrand\tcontext\tratio\teff_CT_count\tC_count\tCT_count\trev_G_count\trev_GA_count\tCI_lower\tCI_upper\n')
 	if options.outfile: fout.close()
 	if options.wigfile: open(options.wigfile, 'w').close()
-	# Initialize processes and communication pipes
-	pConns = {}
-	wProcs = {}
-	for chrom in sortedChroms:
-		pCon, cCon = mp.Pipe()
-		pConns[chrom] = pCon
-		wProcs[chrom] = mp.Process(target=chromWorker, \
-			args=(chrom, chromDict[chrom], options, cCon))
-		# Start process after creation
-		wProcs[chrom].start()
-	# Write output in chromosome order
+	# Presort inputs
+	disp("Presorting inputs")
+	sortedFiles = map(lambda x: sortFile(x, N=options.np, M=options.mem), options.infiles)
+	# Calculate memory requirements and limits
+	largestChromSize = max(chromDict.values())
+	maxMemChrom = 2*largestChromSize*4+largestChromSize
+	maxMemChromMB = maxMemChrom/(1024**2)
+	if options.mem < maxMemChromMB: sys.exit("methratio.py needs at least %i MB of memory to process this reference\n"%(maxMemChromMB))
+	if maxMemChromMB:
+		maxChromProcs = min(options.mem/maxMemChromMB, options.np, len(chromDict))
+	else:
+		maxChromProcs = min(options.np, len(chromDict))
+	disp("Processing %i chromosomes at a time"%(maxChromProcs))
+	# Create shared array for synchronization
+	global syncArray
+	syncArray = mp.RawArray('B', [0]*len(chromDict))
+	argList = [(chrom, chromDict[chrom], options, sortedFiles, pid) for pid, chrom in enumerate(sortedChroms)]
+	if maxChromProcs > 1:
+		# Create worker pool
+		chromPool = ChromPool(maxChromProcs)
+		# Launch workers
+		ret = chromPool.map(chromWorker, argList, chunksize=1)
+		# Close pool
+		chromPool.close()
+		chromPool.join()
+	else:
+		ret = map(chromWorker, argList)
+	# Calculate stats
 	nmap, nc, nd = (0, 0, 0)
-	for chrom in sortedChroms:
-		# Process writes
-		pConns[chrom].send(True)
-		# Wait until writing has finished
-		msg = pConns[chrom].recv()
-		cChrom, cNmap, cNc, cNd = msg
-		assert(cChrom == chrom)
-		# Close connection
-		pConns[chrom].close()
+	for sChrom, retList in zip(sortedChroms, ret):
+		if not retList:
+			sys.exit("%s failed to process\n"%(sChrom))
+		cChrom, cNmap, cNc, cNd = retList
+		assert(cChrom == sChrom)
 		nmap += cNmap
 		nc += cNc
 		nd += cNd
-	# Close processes
-	for chrom in sortedChroms:
-		wProcs[chrom].join()
 	# Display stats
 	disp('total %i valid mappings, %i covered cytosines, average coverage: %.2f fold.' % (nmap, nc, float(nd)/nc))
+	# Delete temporary files
+#	for f in sortedFiles:
+#		if 'tmpSrt.bam' in f:
+#			os.remove(f)
+#			os.remove(f+'.bai')
+#		if 'tmpSrt.bsp' in f:
+#			os.remove(f)
+
+# Can't use daemon processes in the main pool
+class NoDaemonProcess(mp.Process):
+	def _get_daemon(self):
+		return False
+	def _set_daemon(self, value):
+		pass
+	daemon = property(_get_daemon, _set_daemon)
+class ChromPool(multiprocessing.pool.Pool):
+    Process = NoDaemonProcess
+
+def sortFile(infile, N=1, M=1000):
+	'''
+	Presorts an input file and returns the temprorary file, which should be deleted afterwards
+	'''
+	fileEXT = infile.split('.')[-1].upper()
+	if fileEXT == 'BAM':
+		sortedFile = '.'.join(infile.split('.')[:-1]+['tmpSrt','bam'])
+		if bamIsSorted(infile):
+			disp("%s is already sorted"%(infile))
+			return infile
+		else:
+			samSortMem = int(M/N)
+			disp("Calling samtools sort on %s and using %i MB of memory"%(infile, samSortMem))
+			sp.check_call('samtools sort -m %iM -@ %i -O bam -o %s -T %s_tmp %s'%(samSortMem, N, sortedFile, sortedFile, infile), shell=True)
+			sp.check_call('samtools index %s'%(sortedFile), shell=True)
+			return sortedFile
+	elif fileEXT == 'SAM':
+		sortedFile = '.'.join(infile.split('.')[:-1]+['tmpSrt','bam'])
+		samSortMem = int(M/N)
+		disp("Calling samtools sort on %s and using %i MB of memory"%(infile, samSortMem))
+		sp.check_call('samtools view -uS %s | samtools sort -m %iM -@ %i -O bam -o %s -T %s_tmp'%(infile, samSortMem, N, sortedFile, sortedFile), shell=True)
+		sp.check_call('samtools index %s'%(sortedFile), shell=True)
+		return sortedFile
+	elif fileEXT == 'BSP':
+		sortedFile = '.'.join(infile.split('.')[:-1]+['tmpSrt','bsp'])
+		disp("Running manual sort on %s using %i MB of memory"%(infile, M))
+		try:
+			sp.check_call('LC_ALL=C sort --parallel=%i -k5,5 -k6,6n -k1,1n -S %iM %s > %s 2>/dev/null'%(N, M, infile, sortedFile), shell=True)
+		except sp.CalledProcessError as e:
+			disp("Could not sort %s in parallel. Falling back to single core"%(infile))
+			sp.check_call('LC_ALL=C sort -k5,5 -k6,6n -k1,1n -S %iM %s > %s'%(M, infile, sortedFile), shell=True)
+		return sortedFile
+	else:
+		sys.exit("methratio.py does not handle %s files\n"%(fileEXT))
 
 class refcache:
 	def __init__(self, FA, chrom, chromLen, cacheSize=50000):
@@ -151,11 +221,12 @@ def bamIsSorted(inFile):
 		return False
 	return True
 
-def chromWorker(chrom, chromSize, options, conn):
+def chromWorker(argList):
+	chrom, chromSize, options, sortedFiles, pid = argList
 	# load chrom with pysam
 	FA=pysam.FastaFile(options.reffile)
 	# Create process pool before allocation
-	p = mp.Pool(mp.cpu_count(), initializer=initWorker, initargs=(options, chrom))
+	p = mp.Pool(min(4,options.np), initializer=initWorker, initargs=(options, chrom))
 	# allocate arrays
 	meth = array.array('H',[0])*chromSize
 	depth = array.array('H',[0])*chromSize
@@ -173,8 +244,9 @@ def chromWorker(chrom, chromSize, options, conn):
 	BS_conversion = {'+': ('C','T','G','A'), '-': ('G','A','C','T')}
 	nmap = 0
 	# read and filter input files
-	for infile in options.infiles:
-		if infile[-4:].upper() in ('.SAM','.BAM'):
+	for infile in sortedFiles:
+		fileEXT = infile.split('.')[-1].upper()
+		if fileEXT == 'BAM':
 			# Read SAM with samtools
 			disp("Reading %s from %s with samtools"%(chrom, infile))
 			samflags = "-F 4"
@@ -183,14 +255,17 @@ def chromWorker(chrom, chromSize, options, conn):
 			if bamIsSorted(infile):
 				fin = sp.Popen("samtools view %s %s %s"%(samflags, infile, chrom), shell=True, stdout=sp.PIPE, stderr=sp.PIPE)
 			else:
-				disp("Using slower processing, %s is not coordinate sorted"%(infile))
-				fin = sp.Popen("samtools view %s %s | awk '$3 == \"%s\"' | LC_ALL=C sort -k3,3 -k4,4n -k2,2n -k1,1n -S 1G"%(samflags, infile, chrom), shell=True, stdout=sp.PIPE, stderr=sp.PIPE)
+				disp("%s should have been presorted\n"%(infile))
+				return 0
 			get_alignment = get_sam_alignment
-		else:
-			# Read BSP with grep filter
+		elif fileEXT == 'BSP':
+			# Read BSP with awk filter
 			disp("Reading %s from %s"%(chrom, infile))
-			fin = sp.Popen('grep "\t%s\t" %s | LC_ALL=C sort -k4,4 -k5,5n -k1,1n -S 1G'%(chrom, infile), shell=True, stdout=sp.PIPE, stderr=sp.PIPE)
+			fin = sp.Popen("awk '$5 == \"%s\"' %s"%(chrom, infile), shell=True, stdout=sp.PIPE, stderr=sp.PIPE)
 			get_alignment = get_bsp_alignment
+		else:
+			disp("%s should be either presorted bsp or bam\n"%(infile))
+			return 0
 		for line in ifilter(lambda x: x[0] != "@", fin.stdout):
 			map_info = get_alignment(line, options.unique, options.pair, \
 				options.rm_dup, options.trim_fillin, coverage, chromSize)
@@ -205,8 +280,9 @@ def chromWorker(chrom, chromSize, options, conn):
 			if options.CT_SNP == 0: continue
 			searchFunc(refseq, seq, depth1, meth1, rc_convert, rc_match, pos)
 		fin.stdout.close()
+		# Check for error messages
 		STDERR = fin.stderr.read()
-		if STDERR: disp("%s error:\n%s"%(chrom, STDERR))
+		if STDERR: disp("%s ERROR:\n%s"%(chrom, STDERR))
 		fin.stderr.close()
 	disp("%s used %i reads"%(chrom, nmap))
 	if options.combine_CpG:
@@ -224,9 +300,11 @@ def chromWorker(chrom, chromSize, options, conn):
 				meth1[pos] += meth1[posp1]
 				depth1[posp1] = 0
 				meth1[posp1] = 0
-	# Block until turn to write
 	FA.close()
-	write = conn.recv()
+	# Block until turn to write
+	if pid != 0:
+		while syncArray[pid-1] == 0:
+			time.sleep(5)
 	# Open output files
 	if not options.outfile:
 		fout, outfile = sys.stdout, 'STDOUT'
@@ -254,16 +332,15 @@ def chromWorker(chrom, chromSize, options, conn):
 			wigd += d
 			wigm += m
 		fout.write(retStr)
-	# Close files
-	if options.outfile != 'STDOUT': fout.close()
-	if options.wigfile: fwig.close()
-	# Allow another process to write
-	conn.send((chrom, nmap, nc, nd))
-	conn.close()
 	# Close and join pool
 	p.close()
 	p.join()
-	return 0
+	# Close files
+	if options.outfile != 'STDOUT': fout.close()
+	if options.wigfile: fwig.close()
+	# Allow next process to write
+	syncArray[pid] = 1
+	return (chrom, nmap, nc, nd)
 
 def calcMeth(argList):
 	global options
@@ -357,7 +434,8 @@ def parseCigar(seq, cigar):
 
 def get_sam_alignment(line, unique, pair, rm_dup, trim_fillin, coverage, chromLen):
 	col = line.split('\t')
-	cr, pos, cigar, seq, strand, insert = col[2], int(col[3])-1, col[5], col[9], '', int(col[8])
+	cr, pos, cigar, seq, strand, insert, mate_start = col[2], int(col[3])-1, col[5], col[9], '', int(col[8]), int(col[7])
+	orig_len = len(seq)
 	strand_index = line.find('ZS:Z:')
 	assert strand_index >= 0, 'missing strand information "ZS:Z:xx"'
 	strand = line[strand_index+5:strand_index+7]
@@ -376,12 +454,15 @@ def get_sam_alignment(line, unique, pair, rm_dup, trim_fillin, coverage, chromLe
 			return ()
 		coverage[frag_end] |= direction # Record fragment
 	if trim_fillin > 0: # trim fill in nucleotides
-		if strand in ('+-','-+'):
+		if strand in ('+-','-+'): # trim from end of reverse read
 			seq = seq[:-trim_fillin]
-		elif strand in ('++','--'):
+		elif strand in ('++','--'): # trim from front of forward read
 			seq, pos = seq[trim_fillin:], pos+trim_fillin
-	if insert > 0:
-		seq = seq[:int(col[7])-1-pos] # remove overlapped regions in paired hits, SAM format only
+	if insert > 0 and insert < 2*orig_len:
+		# TODO pick up here
+		cutLen = mate_start-1-pos
+		seq = seq[:cutLen] # remove overlapped regions in paired hits, SAM format only
+		#print('SAM CUT %s %s to %i bases %s'%(col[0], strand, cutLen, seq))
 	return (seq, strand[0], cr, pos)
 
 def get_bsp_alignment(line, unique, pair, rm_dup, trim_fillin, coverage, chromLen):
@@ -391,6 +472,8 @@ def get_bsp_alignment(line, unique, pair, rm_dup, trim_fillin, coverage, chromLe
 	if unique and flag != 'UM': return ()
 	if pair and col[7] == '0': return ()
 	seq, strand, cr, pos, insert, mm = col[1], col[6], col[4], int(col[5])-1, int(col[7]), col[9]
+	# seq will change
+	orig_len = len(seq)
 	#if cr not in chroms: return [] #shouldn't need this with grep
 	if ':' in mm:
 		tmp = mm.split(':')
@@ -411,6 +494,10 @@ def get_bsp_alignment(line, unique, pair, rm_dup, trim_fillin, coverage, chromLe
 	if trim_fillin > 0: # trim fill in nucleotides
 		if strand == '+-' or strand == '-+': seq = seq[:-trim_fillin]
 		elif strand == '++' or strand == '--': seq, pos = seq[trim_fillin:], pos+trim_fillin
+	if strand[0] == strand[1] and insert < 2*orig_len and insert: # ++ or -- (lower index)
+		overlap = 2*orig_len - insert
+		seq = seq[:-overlap]
+		#print('BSP CUT %s %s to %i bases %s'%(col[0], strand, orig_len-overlap, seq))
 	return (seq, strand[0], cr, pos)
 
 def ParseFai(inFile, useChroms):
@@ -459,6 +546,18 @@ def getContext(FA, chrom, index, fine=False):
 		elif refseq[0] == 'C': seq = 'CHG'
 		else: seq = 'CHH'
 	return strand, seq
+
+def memAvail(p=0.8):
+	'''
+	Returns a fraction (p) of the free memory in megabytes.
+	'''
+	try:
+		mem_bytes = os.sysconf('SC_PAGE_SIZE') * os.sysconf('SC_AVPHYS_PAGES')  # e.g. 4015976448
+	except:
+		mem_bytes = int(sp.check_output("vm_stat | grep free | awk '{print $3}'", shell=True).rstrip('.\n'))*4096
+	mem_mb = mem_bytes/(1024.**2)  # e.g. 3.74
+	#mem_gib = mem_bytes/(1024.**3)  # e.g. 3.74
+	return int(mem_mb*p)
 
 if __name__ == "__main__":
 	main()

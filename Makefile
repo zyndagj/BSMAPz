@@ -26,43 +26,51 @@ bsmapz: $(OBJS1)
 	$(MAKE) -C gzstream
 	$(CXX) $(FLAGS) $^ -o $@ $(THREAD) -lbam -lz -lgzstream
 
+##############################################
+# Test section
+##############################################
 REF=test_data/test.fasta
-test_data/simulated.fastq.gz: | test_data/simulated.fastq
-	# Create compressed input
-	gzip -c $| > $@
-# Test aligner
-test_data/simulated.sam: test_data/simulated.fastq bsmapz
-	./bsmapz -a $< -z 33 -p 2 -q 20 -d $(REF) -S 77345 -w 10000 -o $@ 2> $@.log
-	@echo Finished aligning $@
-test_data/simulated.sam.bam: test_data/simulated.sam
-	samtools view -bS $< | samtools sort -o $@
-	samtools index $@
-test_data/simulated.bam: test_data/simulated.fastq bsmapz
-	./bsmapz -a $< -z 33 -p 2 -q 20 -d $(REF) -S 77345 -w 10000 -o $@ 2> $@.log
-	@echo Finished aligning $@
-test_data/simulated.bsp: test_data/simulated.fastq.gz bsmapz
-	./bsmapz -a $< -z 33 -p 2 -q 20 -d $(REF) -S 77345 -w 10000 -o $@ 2> $@.log
-	rm $<
-	@echo Finished aligning $@
-# Test methratio
-test_data/simulated.%.mr: test_data/simulated.%
-	python methratio.py -z -r -d $(REF) -o $@ $<
-	#rm $<
-	@echo Finished creating $@
+OS1=test_data/original_single.bsp.mr
+OS2=test_data/original_single.sam.mr
+OP=test_data/original_paired.sam.mr
 
+.SILENT:
+.PRECIOUS:
+test_data/simulated.fastq.gz: test_data/simulated.fastq
+	gzip -c $< > $@
+test_data/test_%.sam.bam: test_data/test_%.sam
+	samtools view -bS $< | samtools sort -o $@ 2> $@.log
+	samtools index $@ 2>> $@.log
+	@echo OK - converted $< to sorted and indexed BAM
+# Test single end input
+test_data/test_single.bsp test_data/test_single.sam test_data/test_single.bam: test_data/simulated.fastq | bsmapz
+	./bsmapz -a $< -z 33 -p 2 -q 20 -d $(REF) -S 77345 -w 1000 -o $@ 2> $@.log
+	@echo OK - Finished aligning $@
+test_data/test_single%.mr: test_data/test_single%
+	python methratio.py -z -r -d $(REF) -o $@ $< &> $@.log
+	@echo OK - Finished calling methylation in $@
+	diff -q $(OS1) $@
+	@echo OK - $@ matches $(OS1)
+	diff -q $(OS2) $@
+	@echo OK - $@ matches $(OS2)
+# Test compressed single end input
+test_data/test_single_compressed.bsp test_data/test_single_compressed.sam test_data/test_single_compressed.bam: test_data/simulated.fastq.gz | bsmapz
+	./bsmapz -a $< -z 33 -p 2 -q 20 -d $(REF) -S 77345 -w 1000 -o $@ 2> $@.log
+	@echo OK - Finished aligning $@
+# Test paired end input
+test_data/test_paired.bsp test_data/test_paired.sam test_data/test_paired.bam: | test_data/simulated_1.fastq test_data/simulated_2.fastq bsmapz
+	./bsmapz -a test_data/simulated_1.fastq -b test_data/simulated_2.fastq -z 33 -p 2 -q 20 -d $(REF) -S 77345 -w 1000 -o $@ 2> $@.log
+	@echo OK - Finished aligning $@
+test_data/test_paired.%.mr: test_data/test_paired.%
+	python methratio.py -z -r -d $(REF) -o $@ $< &> $@.log
+	@echo OK - Finished calling methylation in $@
+	diff -q $(OP) $@
+	@echo OK - $@ matches $(OP)
 
-REF_MR = test_data/original.mr
-MR = test_data/simulated.sam.mr test_data/simulated.bam.mr test_data/simulated.bsp.mr test_data/simulated.sam.bam.mr
-.SILENT: test
-test: bsmapz $(MR)
-	@echo Comparing methratio outputs
-	for a in $(MR) $(REF_MR); do \
-		for b in $(MR) $(REF_MR); do \
-			if [ $$a != $$b ]; then \
-				diff -q $$a $$b && echo "OK   - $$a and $$b MATCH" || echo "FAIL - $$a and $$b DIFFER"; \
-			fi; \
-		done; \
-	done; \
+MR = $(shell echo test_data/test_{paired,single,single_compressed}.{sam.bam,bam,sam,bsp}.mr)
+test: | bsmapz $(MR)
+test-clean:
+	rm -f test_data/test_{single,paired}*
 
 clean:
 	rm -f *.o *~ bsmapz

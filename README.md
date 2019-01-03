@@ -311,45 +311,52 @@ Requires:
 * samtools
 * pysam
 
-For human genome, methratio.py needs ~26GB memory.  
-For systems with limited memory, user can set the `-c/--chr` option to process specified chromosomes only, and combine results for all chromosomes afterwards.
+To extract methylation ratios on the human genome, methratio.py needs about 20GB of memory.
+While methratio.py will no longer overallocate memory and crash, you can also manually limit memory usage with the `-M` parameter when packing concurrent runs.
 
 ```
-Usage: methratio.py [options] BSMAPz_MAPPING_FILES
+usage: methratio.py [-h] [-o FILE] [-w FILE] [-b BIN] -d FILE [-c CHR] [-u]
+                    [-p] [-z] [-q] [-r] [-t N] [-g] [-m FOLD] [-n] [-i CT_SNP]
+                    [-x TYPE] [-f] [-M MB] [-N NP]
+                    FILES [FILES ...]
 
-Options:
+Calls single-base methylation ratios by context.
+
+positional arguments:
+  FILES                 Files from BSMAP output [BAM|SAM|BSP]
+
+optional arguments:
   -h, --help            show this help message and exit
-  -o FILE, --out=FILE   output methylation ratio file name. [default: STDOUT]
-  -O FILE, --alignment-copy=FILE
-                        save a copy of input alignment for BSMAPz pipe input.
-                        (in BAM format) [default: none]
-  -w FILE, --wig=FILE   output methylation ratio wiggle file. [default: none]
-  -b BIN, --wig-bin=BIN
+  -o FILE, --out FILE   output methylation ratio file name. [default: STDOUT]
+  -w FILE, --wig FILE   output methylation ratio wiggle file. [default: none]
+  -b BIN, --wig-bin BIN
                         wiggle file bin size. [default: 25]
-  -d FILE, --ref=FILE   reference genome fasta file. (required)
-  -c CHR, --chr=CHR     process only specified chromosomes, separated by ','.
+  -d FILE, --ref FILE   reference genome fasta file. (required)
+  -c CHR, --chroms CHR  process only specified chromosomes, separated by ','.
                         [default: all] example: --chroms=chr1,chr2
-  -s PATH, --sam-path=PATH
-                        path to samtools. [default: none]
   -u, --unique          process only unique mappings/pairs.
   -p, --pair            process only properly paired mappings.
-  -z, --zero-meth       report loci with zero methylation ratios.
-                        (depreciated, -z will be always enabled)
+  -z, --zero-meth       report loci with zero methylation ratios. (deprecated,
+                        -z will be always enabled)
   -q, --quiet           don't print progress on stderr.
   -r, --remove-duplicate
                         remove duplicated reads.
-  -t N, --trim-fillin=N
-                        trim N end-repairing fill-in nucleotides. [default: 0]
+  -t N, --trim-fillin N
+                        trim N end-repairing fill-in nucleotides from
+                        fragments. [default: 0]
   -g, --combine-CpG     combine CpG methylaion ratios on both strands.
-  -m FOLD, --min-depth=FOLD
+  -m FOLD, --min-depth FOLD
                         report loci with sequencing depth>=FOLD. [default: 1]
   -n, --no-header       don't print a header line
-  -i CT_SNP, --ct-snp=CT_SNP
+  -i CT_SNP, --ct-snp CT_SNP
                         how to handle CT SNP ("no-action", "correct", "skip"),
                         default: "correct".
-  -x TYPE, --context=TYPE
+  -x TYPE, --context TYPE
                         methylation pattern type [CG|CHG|CHH], multiple types
                         separated by ','. [default: all]
+  -f, --full            Report full context (CHG -> CAG)
+  -M MB, --mem MB       Maximum memory in megabytes to use [16000]
+  -N NP, --np NP        Maximum number of processes to use [-1]
 ```
 
 #### Output format
@@ -381,10 +388,10 @@ python methratio.py -d mm9.fa -o meth.txt -p bsmap_sample1.bsp bsmap_sample2.sam
 python methratio.py -s /home/tools/samtools -t 1 -d arab.fa -o meth.txt bsmap_sample.sam
 ```
 
-> Note: For overlapping paired hits, nucleotides in the overlapped part should be counted only once instead of twice.
+> Note: The original version of methratio.py counted overlapping regions of reads twice when using BSP input. We recommend re-running all methylation extraction if you utilize the BSP format.
 
-methratio.py can correctly handle such cases for SAM format output, but for BSP format it will still be counted twice,
-because the BSP format does not contain mapping information of the mate.
+When read pairs overlap, methratio.py will trim off the overlapping region of the read with the lower index.
+In the future, we hope to analyze both pairs at once so we can employ the `samtools mpileup` method like [MethylDackel](https://github.com/dpryan79/MethylDackel#a-note-on-overlapping-reads).
 
 ### methdiff.py
 
