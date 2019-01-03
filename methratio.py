@@ -2,11 +2,11 @@
 
 ###############################################################################
 # Author: Greg Zynda
-# Last Modified: 10/08/2018
+# Last Modified: 01/02/2019
 ###############################################################################
 # BSD 3-Clause License
 # 
-# Copyright (c) 2018, Texas Advanced Computing Center
+# Copyright (c) 2019, Texas Advanced Computing Center
 # All rights reserved.
 # 
 # Redistribution and use in source and binary forms, with or without
@@ -58,7 +58,7 @@ def main():
 	parser.add_argument("-z", "--zero-meth", action="store_true", dest="meth0", help="report loci with zero methylation ratios. (deprecated, -z will be always enabled)", default=True)
 	parser.add_argument("-q", "--quiet", action="store_true", dest="quiet", help="don't print progress on stderr.", default=False)
 	parser.add_argument("-r", "--remove-duplicate", action="store_true", dest="rm_dup", help="remove duplicated reads.", default=False)
-	parser.add_argument("-t", "--trim-fillin", dest="trim_fillin", type=int, metavar='N', help="trim N end-repairing fill-in nucleotides. [default: %(default)s]", default=0)
+	parser.add_argument("-t", "--trim-fillin", dest="trim_fillin", type=int, metavar='N', help="trim N end-repairing fill-in nucleotides from fragments. [default: %(default)s]", default=0)
 	parser.add_argument("-g", "--combine-CpG", action="store_true", dest="combine_CpG", help="combine CpG methylaion ratios on both strands.", default=False)
 	parser.add_argument("-m", "--min-depth", dest="min_depth", type=int, metavar='FOLD', help="report loci with sequencing depth>=FOLD. [default: %(default)s]", default=1)
 	parser.add_argument("-n", "--no-header", action="store_true", dest="no_header", help="don't print a header line", default=False)
@@ -431,7 +431,8 @@ def parseCigar(seq, cigar):
 
 def get_sam_alignment(line, unique, pair, rm_dup, trim_fillin, coverage, chromLen):
 	col = line.split('\t')
-	cr, pos, cigar, seq, strand, insert = col[2], int(col[3])-1, col[5], col[9], '', int(col[8])
+	cr, pos, cigar, seq, strand, insert, mate_start = col[2], int(col[3])-1, col[5], col[9], '', int(col[8]), int(col[7])
+	orig_len = len(seq)
 	strand_index = line.find('ZS:Z:')
 	assert strand_index >= 0, 'missing strand information "ZS:Z:xx"'
 	strand = line[strand_index+5:strand_index+7]
@@ -450,12 +451,15 @@ def get_sam_alignment(line, unique, pair, rm_dup, trim_fillin, coverage, chromLe
 			return ()
 		coverage[frag_end] |= direction # Record fragment
 	if trim_fillin > 0: # trim fill in nucleotides
-		if strand in ('+-','-+'):
+		if strand in ('+-','-+'): # trim from end of reverse read
 			seq = seq[:-trim_fillin]
-		elif strand in ('++','--'):
+		elif strand in ('++','--'): # trim from front of forward read
 			seq, pos = seq[trim_fillin:], pos+trim_fillin
-	if insert > 0:
-		seq = seq[:int(col[7])-1-pos] # remove overlapped regions in paired hits, SAM format only
+	if insert > 0 and insert < 2*orig_len:
+		# TODO pick up here
+		cutLen = mate_start-1-pos
+		seq = seq[:cutLen] # remove overlapped regions in paired hits, SAM format only
+		#print('SAM CUT %s %s to %i bases %s'%(col[0], strand, cutLen, seq))
 	return (seq, strand[0], cr, pos)
 
 def get_bsp_alignment(line, unique, pair, rm_dup, trim_fillin, coverage, chromLen):
@@ -465,6 +469,8 @@ def get_bsp_alignment(line, unique, pair, rm_dup, trim_fillin, coverage, chromLe
 	if unique and flag != 'UM': return ()
 	if pair and col[7] == '0': return ()
 	seq, strand, cr, pos, insert, mm = col[1], col[6], col[4], int(col[5])-1, int(col[7]), col[9]
+	# seq will change
+	orig_len = len(seq)
 	#if cr not in chroms: return [] #shouldn't need this with grep
 	if ':' in mm:
 		tmp = mm.split(':')
@@ -485,6 +491,10 @@ def get_bsp_alignment(line, unique, pair, rm_dup, trim_fillin, coverage, chromLe
 	if trim_fillin > 0: # trim fill in nucleotides
 		if strand == '+-' or strand == '-+': seq = seq[:-trim_fillin]
 		elif strand == '++' or strand == '--': seq, pos = seq[trim_fillin:], pos+trim_fillin
+	if strand[0] == strand[1] and insert < 2*orig_len and insert: # ++ or -- (lower index)
+		overlap = 2*orig_len - insert
+		seq = seq[:-overlap]
+		#print('BSP CUT %s %s to %i bases %s'%(col[0], strand, orig_len-overlap, seq))
 	return (seq, strand[0], cr, pos)
 
 def ParseFai(inFile, useChroms):
