@@ -1,6 +1,14 @@
 ##################################
 BSMAPz
 ##################################
+01-02-2019
+release 1.1.0
+1. The original version of methratio.py did not trim overlapping reads from BSP input. This issue has been fixed.
+2. Implemented memory limits to methratio.py (-M)
+3. Implemented processor limits to methratio.py (-P)
+4. Added the option to return full methylation context (CAG instead of CHG) with methratio.py
+5. Test suite now compares all possible output formats for single and paired reads
+
 10-04-2018
 release 1.0
 1. Patched samtools and main.cpp to for compatibility on OSX

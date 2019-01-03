@@ -315,41 +315,48 @@ For human genome, methratio.py needs ~26GB memory.
 For systems with limited memory, user can set the `-c/--chr` option to process specified chromosomes only, and combine results for all chromosomes afterwards.
 
 ```
-Usage: methratio.py [options] BSMAPz_MAPPING_FILES
+usage: methratio.py [-h] [-o FILE] [-w FILE] [-b BIN] -d FILE [-c CHR] [-u]
+                    [-p] [-z] [-q] [-r] [-t N] [-g] [-m FOLD] [-n] [-i CT_SNP]
+                    [-x TYPE] [-f] [-M MB] [-N NP]
+                    FILES [FILES ...]
 
-Options:
+Calls single-base methylation ratios by context.
+
+positional arguments:
+  FILES                 Files from BSMAP output [BAM|SAM|BSP]
+
+optional arguments:
   -h, --help            show this help message and exit
-  -o FILE, --out=FILE   output methylation ratio file name. [default: STDOUT]
-  -O FILE, --alignment-copy=FILE
-                        save a copy of input alignment for BSMAPz pipe input.
-                        (in BAM format) [default: none]
-  -w FILE, --wig=FILE   output methylation ratio wiggle file. [default: none]
-  -b BIN, --wig-bin=BIN
+  -o FILE, --out FILE   output methylation ratio file name. [default: STDOUT]
+  -w FILE, --wig FILE   output methylation ratio wiggle file. [default: none]
+  -b BIN, --wig-bin BIN
                         wiggle file bin size. [default: 25]
-  -d FILE, --ref=FILE   reference genome fasta file. (required)
-  -c CHR, --chr=CHR     process only specified chromosomes, separated by ','.
+  -d FILE, --ref FILE   reference genome fasta file. (required)
+  -c CHR, --chroms CHR  process only specified chromosomes, separated by ','.
                         [default: all] example: --chroms=chr1,chr2
-  -s PATH, --sam-path=PATH
-                        path to samtools. [default: none]
   -u, --unique          process only unique mappings/pairs.
   -p, --pair            process only properly paired mappings.
-  -z, --zero-meth       report loci with zero methylation ratios.
-                        (depreciated, -z will be always enabled)
+  -z, --zero-meth       report loci with zero methylation ratios. (deprecated,
+                        -z will be always enabled)
   -q, --quiet           don't print progress on stderr.
   -r, --remove-duplicate
                         remove duplicated reads.
-  -t N, --trim-fillin=N
-                        trim N end-repairing fill-in nucleotides. [default: 0]
+  -t N, --trim-fillin N
+                        trim N end-repairing fill-in nucleotides from
+                        fragments. [default: 0]
   -g, --combine-CpG     combine CpG methylaion ratios on both strands.
-  -m FOLD, --min-depth=FOLD
+  -m FOLD, --min-depth FOLD
                         report loci with sequencing depth>=FOLD. [default: 1]
   -n, --no-header       don't print a header line
-  -i CT_SNP, --ct-snp=CT_SNP
+  -i CT_SNP, --ct-snp CT_SNP
                         how to handle CT SNP ("no-action", "correct", "skip"),
                         default: "correct".
-  -x TYPE, --context=TYPE
+  -x TYPE, --context TYPE
                         methylation pattern type [CG|CHG|CHH], multiple types
                         separated by ','. [default: all]
+  -f, --full            Report full context (CHG -> CAG)
+  -M MB, --mem MB       Maximum memory in megabytes to use [16000]
+  -N NP, --np NP        Maximum number of processes to use [-1]
 ```
 
 #### Output format

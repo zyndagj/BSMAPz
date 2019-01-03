@@ -65,7 +65,7 @@ def main():
 	parser.add_argument("-i", "--ct-snp", dest="CT_SNP", help='how to handle CT SNP ("no-action", "correct", "skip"), default: "correct".', default="correct")
 	parser.add_argument("-x", "--context", dest="context", metavar='TYPE', help="methylation pattern type [CG|CHG|CHH], multiple types separated by ','. [default: all]", default='')
 	parser.add_argument("-f", "--full", action="store_true", help="Report full context (CHG -> CAG)")
-	parser.add_argument("-M", "--mem", type=int, metavar='MB', help="Maximum memory in megabytes to use [%(default)s]", default=4000)
+	parser.add_argument("-M", "--mem", type=int, metavar='MB', help="Maximum memory in megabytes to use [%(default)s]", default=16000)
 	parser.add_argument("-N", "--np", type=int, metavar='NP', help="Maximum number of processes to use [%(default)s]", default=-1)
 	parser.add_argument("infiles", metavar="FILES", help="Files from BSMAP output [BAM|SAM|BSP]", nargs="+")
 	# Parse Options
