@@ -2,7 +2,7 @@
 
 ###############################################################################
 # Author: Greg Zynda
-# Last Modified: 01/02/2019
+# Last Modified: 01/03/2019
 ###############################################################################
 # BSD 3-Clause License
 # 
@@ -65,7 +65,7 @@ def main():
 	parser.add_argument("-i", "--ct-snp", dest="CT_SNP", help='how to handle CT SNP ("no-action", "correct", "skip"), default: "correct".', default="correct")
 	parser.add_argument("-x", "--context", dest="context", metavar='TYPE', help="methylation pattern type [CG|CHG|CHH], multiple types separated by ','. [default: all]", default='')
 	parser.add_argument("-f", "--full", action="store_true", help="Report full context (CHG -> CAG)")
-	parser.add_argument("-M", "--mem", type=int, metavar='MB', help="Maximum memory in megabytes to use [%(default)s]", default=16000)
+	parser.add_argument("-M", "--mem", type=int, metavar='MB', help="Maximum memory in megabytes to use [%(default)s]", default=-1)
 	parser.add_argument("-N", "--np", type=int, metavar='NP', help="Maximum number of processes to use [%(default)s]", default=-1)
 	parser.add_argument("infiles", metavar="FILES", help="Files from BSMAP output [BAM|SAM|BSP]", nargs="+")
 	# Parse Options
@@ -81,6 +81,9 @@ def main():
 	if options.trim_fillin < 0: parser.error('Invalid -t value, must >= 0')
 	if len(options.context) > 0: options.context = options.context.split(',')
 	if len(options.outfile) == 0: disp("Missing output file name, write to STDOUT.")
+	if options.mem < 0:
+		options.mem = memAvail(0.9)
+		disp("Using 90%% of available memory (%i MB) as limit"%(options.mem))
 	if options.mem > memAvail(0.95): sys.exit("Only %i MB available, not %i"%(memAvail(0.95), options.mem))
 	if options.np == -1: options.np = min(mp.cpu_count(), 64)
 	# Parse fasta.fai for chrom lengths
