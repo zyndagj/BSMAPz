@@ -1,0 +1,46 @@
+{% set name = "BSMAPz" %}
+{% set version = "1.1.0" %}
+{% set sha256 = "9e5992fd1e939bb5a7a07acb96d92cb836c620aac38595f3749da0a6e8e633f0" %}
+
+about:
+  home: https://github.com/zyndagj/BSMAPz
+  license: GNU GPL v3
+  license_family: GPL
+  license_file: LICENSE.txt
+  summary: "An optimized fork of BSMAP created by Greg Zynda"
+
+build:
+  number: 0
+  skip: True  # [py3k]
+
+package:
+  name: {{ name|lower }}
+  version: {{ version }}
+
+source:
+  sha256: {{ sha256 }}
+  url: https://github.com/zyndagj/{{ name }}/archive/{{ version }}.tar.gz
+
+requirements:
+  build:
+    - {{ compiler('cxx') }}
+    - python
+  host:
+    - zlib
+  run:
+    - python
+    - zlib
+    - samtools
+
+test:
+  commands:
+    - bsmap -h 2>&1 | grep "bsmap" > /dev/null
+    - bsp2sam.py -h
+    - methdiff.py -h
+    - methratio.py -h
+    - sam2bam.sh -h
+
+extra:
+  identifiers:
+    - biotools:bsmap
+  doi: doi.org/10.1186/1471-2105-10-232
