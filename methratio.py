@@ -562,7 +562,7 @@ def memAvail(p=0.8):
 	try:
 		mem_bytes = os.sysconf('SC_PAGE_SIZE') * os.sysconf('SC_AVPHYS_PAGES')  # e.g. 4015976448
 	except:
-		mem_bytes = int(sp.check_output("vm_stat | grep free | awk '{print $3}'", shell=True).rstrip('.\n'))*4096
+		mem_bytes = int(sp.check_output("vm_stat | grep free | awk '{print $3}'", shell=True).decode('ascii').rstrip('.\n'))*4096
 	mem_mb = mem_bytes/(1024.**2)  # e.g. 3.74
 	#mem_gib = mem_bytes/(1024.**3)  # e.g. 3.74
 	return int(mem_mb*p)
