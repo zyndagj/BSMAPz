@@ -5,7 +5,6 @@ export LDFLAGS="-L${PREFIX}/lib"
 export CPPFLAGS="-I$PREFIX/include"
 export LIBRARY_PATH=${PREFIX}/lib
 
-which samtools
 samtools help
 make
 make test

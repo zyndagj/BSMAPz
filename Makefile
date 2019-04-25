@@ -18,6 +18,10 @@ OBJS1= $(patsubst %,%.o,$(SOURCE))
 
 all: bsmapz test
 
+.PHONY: conda
+conda:
+	cd conda && conda build --python 2.7 -c bioconda -c conda-forge -c defaults .
+
 %.o:%.cpp
 	$(CXX) $(FLAGS) -c $< -o $@
 
