@@ -2,7 +2,7 @@
 
 ###############################################################################
 # Author: Greg Zynda
-# Last Modified: 01/03/2019
+# Last Modified: 04/25/2019
 ###############################################################################
 # BSD 3-Clause License
 # 
@@ -36,12 +36,20 @@
 ###############################################################################
 
 import sys, time, os, array, argparse, re
-from itertools import compress, ifilter, izip
+try:
+	# py2
+	from itertools import compress, ifilter, izip
+	from string import maketrans
+except:
+	# py3
+	from itertools import compress
+	izip = zip
+	ifilter = filter
+	maketrans = str.maketrans
 import subprocess as sp
 import multiprocessing as mp
 import multiprocessing.pool
 import pysam
-from string import maketrans
 
 quiet = False
 
