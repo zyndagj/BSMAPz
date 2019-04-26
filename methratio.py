@@ -2,7 +2,7 @@
 
 ###############################################################################
 # Author: Greg Zynda
-# Last Modified: 01/03/2019
+# Last Modified: 04/25/2019
 ###############################################################################
 # BSD 3-Clause License
 # 
@@ -36,12 +36,20 @@
 ###############################################################################
 
 import sys, time, os, array, argparse, re
-from itertools import compress, ifilter, izip
+try:
+	# py2
+	from itertools import compress, ifilter, izip
+	from string import maketrans
+except:
+	# py3
+	from itertools import compress
+	izip = zip
+	ifilter = filter
+	maketrans = str.maketrans
 import subprocess as sp
 import multiprocessing as mp
 import multiprocessing.pool
 import pysam
-from string import maketrans
 
 quiet = False
 
@@ -554,7 +562,7 @@ def memAvail(p=0.8):
 	try:
 		mem_bytes = os.sysconf('SC_PAGE_SIZE') * os.sysconf('SC_AVPHYS_PAGES')  # e.g. 4015976448
 	except:
-		mem_bytes = int(sp.check_output("vm_stat | grep free | awk '{print $3}'", shell=True).rstrip('.\n'))*4096
+		mem_bytes = int(sp.check_output("vm_stat | grep free | awk '{print $3}'", shell=True).decode('ascii').rstrip('.\n'))*4096
 	mem_mb = mem_bytes/(1024.**2)  # e.g. 3.74
 	#mem_gib = mem_bytes/(1024.**3)  # e.g. 3.74
 	return int(mem_mb*p)

@@ -1,0 +1,45 @@
+{% set name = "BSMAPz" %}
+{% set version = "1.1.0" %}
+{% set sha256 = "9e5992fd1e939bb5a7a07acb96d92cb836c620aac38595f3749da0a6e8e633f0" %}
+
+about:
+  home: https://github.com/zyndagj/BSMAPz
+  license: GNU GPL v3
+  license_family: GPL
+  license_file: LICENSE.txt
+  summary: An optimized fork of BSMAP created by Greg Zynda
+
+build:
+  number: 0
+
+package:
+  name: {{ name|lower }}
+  version: {{ version }}
+
+source:
+  git_url: https://github.com/zyndagj/BSMAPz.git
+  git_rev: feature/conda
+
+requirements:
+  build:
+    - {{ compiler('cxx') }}
+    - python=2.7
+    - samtools
+    - pysam
+  host:
+    - zlib
+  run:
+    - python=2.7
+    - zlib
+    - samtools
+    - pysam
+
+test:
+  commands:
+    - bsmapz -h 2>&1 | grep "bsmap" > /dev/null
+    - methratio.py -h 2>&1 | grep "ratios" > /dev/null
+
+extra:
+  identifiers:
+    - biotools:bsmap
+  doi: doi.org/10.1186/1471-2105-10-232
