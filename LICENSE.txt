@@ -1,11 +1,11 @@
-BSMAPz is Copyright (C) 2018, University of Texas at Austin, Baylor
-College of Medicince, and contributors listed in the AUTHORS.txt file
+BSMAPz is Copyright (C) 2018, Baylor College of Medicince, and
+contributors listed in the AUTHORS.txt file
 in the distribution's top directory.
 
 BSMAPz is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License as
 published by the Free Software Foundation; either version 3, or (at
-your option) any later version.  Any BSMAPZ
+your option) any later version.  Any BSMAPz
 documentation is licensed under the Creative Commons Attribution 3.0
 License (http://creativecommons.org/licenses/by/3.0/).
 

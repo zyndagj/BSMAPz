@@ -1,5 +1,5 @@
 {% set name = "BSMAPz" %}
-{% set version = "1.1.0" %}
+{% set version = "1.1.1" %}
 {% set sha256 = "9e5992fd1e939bb5a7a07acb96d92cb836c620aac38595f3749da0a6e8e633f0" %}
 
 about:

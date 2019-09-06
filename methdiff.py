@@ -1,5 +1,5 @@
 #! /usr/bin/env python
-import sys, time, os, array, optparse
+import sys, time, os, array, optparse, math
 usage = "usage: %prog [options] <GROUP1_SAMPLE1,GROUP1_SAMPLE2,...> <GROUP2_SAMPLE1,GROUP2_SAMPLE2,...>"
 parser = optparse.OptionParser(usage=usage)
 
@@ -69,17 +69,18 @@ def get_chrom(group, sample, cr):
             if col[3] not in options.context:
                 line = fin.readline() 
                 continue
-        mm[pos/options.bin] += float(col[6])
-        dd[pos/options.bin] += float(col[5])
+	index = int(pos/options.bin)
+        mm[index] += float(col[6])
+        dd[index] += float(col[5])
         line = fin.readline()
     lines[group][sample] = line
     return
 
 def conf_intv(m, d, z):    
-    p, z2 = m / d, z * z   
-    pmid = p + z2 / (2 * d)
-    span = z * (p * (1 - p) / d + z2 / (4 * d * d)) ** 0.5
-    denorm = 1 + z2 / d
+    p, z2 = min(m,d) / d, z * z   
+    pmid = p + z2 / (2.0 * d)
+    span = z * (p * (1.0 - p) / d + z2 / (4.0 * d * d)) ** 0.5
+    denorm = 1.0 + z2 / d
     return ((pmid-span)/denorm, (pmid+span)/denorm)
 
 def get_pval(m0, d0, m1, d1):
@@ -127,8 +128,9 @@ fout.write('cr\tstart\tend\tp_value\tdiff_ratio\t%s_ratio\t%s_depth\t%s_meth\t%s
 for cr in sorted(ref.keys()):
     disp('processing %s ...' % cr)
     for g, group in enumerate(infiles): 
-        meth[g] = array.array('f', [0.]) * (len(ref[cr]) / options.bin + 1)
-        depth[g] = array.array('f', [0.]) * (len(ref[cr]) / options.bin + 1)
+        n_bins = int(math.ceil(len(ref[cr])/float(options.bin)))
+        meth[g] = array.array('f', [0.]) * n_bins
+        depth[g] = array.array('f', [0.]) * n_bins
         for i in xrange(len(group)): get_chrom(g, i, cr)
     cmp_chrom(cr)
 
