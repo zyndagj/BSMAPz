@@ -18,7 +18,7 @@ package:
 
 source:
   git_url: https://github.com/zyndagj/BSMAPz.git
-  git_rev: feature/conda
+  git_rev: fix/methdiff_ratio
 
 requirements:
   build:
