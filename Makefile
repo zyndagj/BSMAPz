@@ -1,4 +1,5 @@
 CXX=	g++
+SHELL=bash
 
 # Install prefix
 DESTDIR=/usr/local
@@ -85,3 +86,4 @@ install:
 	install ./bsmapz $(BIN)
 	install ./sam2bam.sh $(BIN)
 	install ./methratio.py $(BIN)
+	install ./methdiff.py $(BIN)
