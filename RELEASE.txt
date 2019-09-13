@@ -1,6 +1,13 @@
 ##################################
 BSMAPz
 ##################################
+09-06-2019
+release 1.1.1
+1. Fixed methylation ratio calculation in methdiff.py:
+   - Methylation ratio now uses min(C, eff_CT)/eff_CT to be consistant with methratio.py
+   - span value now uses floating point numbers to stop accidental truncation
+2. Fixed LICENSE attribution
+
 01-02-2019
 release 1.1.0
 1. The original version of methratio.py did not trim overlapping reads from BSP input. This issue has been fixed.

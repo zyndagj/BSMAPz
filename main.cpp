@@ -44,7 +44,7 @@ bit32_t n_aligned_a=0, n_unique_a=0, n_multiple_a=0;  //number of a reads aligne
 bit32_t n_aligned_b=0, n_unique_b=0, n_multiple_b=0;  //number of b reads aligned
 bit32_t ref_time, read_time;
 bit16_t tid[64];
-char version[] = "1.1.0";
+char version[] = "1.1.1";
 ostringstream message;
 
 void info(int level) {
