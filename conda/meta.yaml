@@ -1,6 +1,5 @@
 {% set name = "BSMAPz" %}
-{% set version = "1.1.0" %}
-{% set sha256 = "9e5992fd1e939bb5a7a07acb96d92cb836c620aac38595f3749da0a6e8e633f0" %}
+{% set version = "1.1.1" %}
 
 about:
   home: https://github.com/zyndagj/BSMAPz
@@ -17,20 +16,21 @@ package:
   version: {{ version }}
 
 source:
-  git_url: https://github.com/zyndagj/BSMAPz.git
-  git_rev: feature/conda
+  path: ..
 
 requirements:
   build:
-    - {{ compiler('cxx') }}
     - python=2.7
+    - {{ compiler('cxx') }}
+    - zlib
     - samtools
     - pysam
+    - conda-verify
   host:
     - zlib
+    - python=2.7
   run:
     - python=2.7
-    - zlib
     - samtools
     - pysam
 
@@ -38,6 +38,7 @@ test:
   commands:
     - bsmapz -h 2>&1 | grep "bsmap" > /dev/null
     - methratio.py -h 2>&1 | grep "ratios" > /dev/null
+    - methdiff.py -h 2>&1 | grep "Usage" > /dev/null
 
 extra:
   identifiers:
