@@ -44,7 +44,7 @@ OP=test_data/original_paired.sam.mr
 test_data/simulated.fastq.gz: test_data/simulated.fastq
 	gzip -c $< > $@
 test_data/test_%.sam.bam: test_data/test_%.sam
-	samtools view -bS $< | samtools sort -o $@ 2> $@.log
+	samtools view -bS $< | samtools sort -o $@ 2> $@.log || ( cat $@.log; exit 1 )
 	samtools index $@ 2>> $@.log
 	@echo OK - converted $< to sorted and indexed BAM
 # Test single end input
@@ -68,7 +68,7 @@ test_data/test_paired.bsp test_data/test_paired.sam test_data/test_paired.bam: |
 	@echo OK - Finished aligning $@
 test_data/test_paired.%.mr: test_data/test_paired.%
 	echo python methratio.py -z -r -d $(REF) -o $@ $< > $@.log
-	python methratio.py -z -r -d $(REF) -o $@ $< >> $@.log 2>&1
+	python methratio.py -z -r -d $(REF) -o $@ $< >> $@.log 2>&1 || ( cat $@.log; exit 1 )
 	@echo OK - Finished calling methylation in $@
 	diff -q $(OP) $@
 	@echo OK - $@ matches $(OP)
