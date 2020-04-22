@@ -2,7 +2,7 @@
 
 ###############################################################################
 # Author: Greg Zynda
-# Last Modified: 04/25/2019
+# Last Modified: 04/22/2020
 ###############################################################################
 # BSD 3-Clause License
 # 
@@ -35,7 +35,10 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ###############################################################################
 
-import sys, time, os, array, argparse, re
+import sys, time, os, array, argparse, re, logging
+FORMAT = "[%(levelname)s - %(filename)s:%(lineno)s - %(funcName)s] %(message)s"
+logging.basicConfig(level=logging.INFO, format=FORMAT)
+logger = logging.getLogger(__name__)
 try:
 	# py2
 	from itertools import compress, ifilter, izip
@@ -50,8 +53,6 @@ import subprocess as sp
 import multiprocessing as mp
 import multiprocessing.pool
 import pysam
-
-quiet = False
 
 def main():
 	usage = "usage: %prog [options] BSMAP_MAPPING_FILES"
@@ -76,11 +77,22 @@ def main():
 	parser.add_argument("-M", "--mem", type=int, metavar='MB', help="Maximum memory in megabytes to use [%(default)s]", default=-1)
 	parser.add_argument("-N", "--np", type=int, metavar='NP', help="Maximum number of processes to use [%(default)s]", default=-1)
 	parser.add_argument("infiles", metavar="FILES", help="Files from BSMAP output [BAM|SAM|BSP]", nargs="+")
+	parser.add_argument('-v', '--verbose', action='store_true', help='Enable verbose logging')
 	# Parse Options
 	options = parser.parse_args()
-	# Set up any globals
-	quiet = options.quiet
+	################################
+	# Configure logging
+	################################
+	if options.quiet:
+		logger.setLevel(logging.WARN)
+	elif options.debug:
+		logger.setLevel(logging.DEBUG)
+		logger.debug("DEBUG logging enabled")
+	else:
+		logger.setLevel(logging.INFO)
+	################################
 	# Check options
+	################################
 	if len(options.chroms) > 0: options.chroms = options.chroms.split(',')
 	CT_SNP_val = {"no-action": 0, "correct": 1, "skip": 2}
 	try: options.CT_SNP = CT_SNP_val[options.CT_SNP.lower()]
@@ -88,15 +100,15 @@ def main():
 	if options.min_depth <= 0: parser.error('Invalid -m value, must >= 1')
 	if options.trim_fillin < 0: parser.error('Invalid -t value, must >= 0')
 	if len(options.context) > 0: options.context = options.context.split(',')
-	if len(options.outfile) == 0: disp("Missing output file name, write to STDOUT.")
+	if len(options.outfile) == 0: logger.info("Missing output file name, write to STDOUT.")
 	if options.mem < 0:
 		options.mem = memAvail(0.9)
-		disp("Using 90%% of available memory (%i MB) as limit"%(options.mem))
+		logger.info("Using 90%% of available memory (%i MB) as limit"%(options.mem))
 	if options.mem > memAvail(0.95): sys.exit("Only %i MB available, not %i"%(memAvail(0.95), options.mem))
 	if options.np == -1: options.np = min(mp.cpu_count(), 64)
 	# Parse fasta.fai for chrom lengths
 	if not os.path.exists(options.reffile+'.fai'):
-		disp("Indexing reference")
+		logger.info("Indexing reference")
 		sp.call(['samtools','faidx',options.reffile])
 	chromDict = ParseFai(options.reffile+'.fai', options.chroms)
 	sortedChroms = sorted(chromDict.keys())
@@ -110,7 +122,7 @@ def main():
 	if options.outfile: fout.close()
 	if options.wigfile: open(options.wigfile, 'w').close()
 	# Presort inputs
-	disp("Presorting inputs")
+	logger.info("Presorting inputs")
 	sortedFiles = map(lambda x: sortFile(x, N=options.np, M=options.mem), options.infiles)
 	# Calculate memory requirements and limits
 	largestChromSize = max(chromDict.values())
@@ -121,7 +133,7 @@ def main():
 		maxChromProcs = min(options.mem/maxMemChromMB, options.np, len(chromDict))
 	else:
 		maxChromProcs = min(options.np, len(chromDict))
-	disp("Processing %i chromosomes at a time"%(maxChromProcs))
+	logger.info("Processing %i chromosomes at a time"%(maxChromProcs))
 	# Create shared array for synchronization
 	global syncArray
 	syncArray = mp.RawArray('B', [0]*len(chromDict))
@@ -147,7 +159,7 @@ def main():
 		nc += cNc
 		nd += cNd
 	# Display stats
-	disp('total %i valid mappings, %i covered cytosines, average coverage: %.2f fold.' % (nmap, nc, float(nd)/nc))
+	logger.info('total %i valid mappings, %i covered cytosines, average coverage: %.2f fold.' % (nmap, nc, float(nd)/nc))
 	# Delete temporary files
 #	for f in sortedFiles:
 #		if 'tmpSrt.bam' in f:
@@ -174,53 +186,65 @@ def sortFile(infile, N=1, M=1000):
 	if fileEXT == 'BAM':
 		sortedFile = '.'.join(infile.split('.')[:-1]+['tmpSrt','bam'])
 		if bamIsSorted(infile):
-			disp("%s is already sorted"%(infile))
+			logger.info("%s is already sorted"%(infile))
 			return infile
 		else:
 			samSortMem = int(M/N)
-			disp("Calling samtools sort on %s and using %i MB of memory"%(infile, samSortMem))
+			logger.info("Calling samtools sort on %s and using %i MB of memory"%(infile, samSortMem))
 			sp.check_call('samtools sort -m %iM -@ %i -O bam -o %s -T %s_tmp %s'%(samSortMem, N, sortedFile, sortedFile, infile), shell=True)
 			sp.check_call('samtools index %s'%(sortedFile), shell=True)
 			return sortedFile
 	elif fileEXT == 'SAM':
 		sortedFile = '.'.join(infile.split('.')[:-1]+['tmpSrt','bam'])
 		samSortMem = int(M/N)
-		disp("Calling samtools sort on %s and using %i MB of memory"%(infile, samSortMem))
+		logger.info("Calling samtools sort on %s and using %i MB of memory"%(infile, samSortMem))
 		sp.check_call('samtools view -uS %s | samtools sort -m %iM -@ %i -O bam -o %s -T %s_tmp'%(infile, samSortMem, N, sortedFile, sortedFile), shell=True)
 		sp.check_call('samtools index %s'%(sortedFile), shell=True)
 		return sortedFile
 	elif fileEXT == 'BSP':
 		sortedFile = '.'.join(infile.split('.')[:-1]+['tmpSrt','bsp'])
-		disp("Running manual sort on %s using %i MB of memory"%(infile, M))
+		logger.info("Running manual sort on %s using %i MB of memory"%(infile, M))
 		try:
 			sp.check_call('LC_ALL=C sort --parallel=%i -k5,5 -k6,6n -k1,1n -S %iM %s > %s 2>/dev/null'%(N, M, infile, sortedFile), shell=True)
 		except sp.CalledProcessError as e:
-			disp("Could not sort %s in parallel. Falling back to single core"%(infile))
+			logger.info("Could not sort %s in parallel. Falling back to single core"%(infile))
 			sp.check_call('LC_ALL=C sort -k5,5 -k6,6n -k1,1n -S %iM %s > %s'%(M, infile, sortedFile), shell=True)
 		return sortedFile
 	else:
 		sys.exit("methratio.py does not handle %s files\n"%(fileEXT))
 
 class refcache:
-	def __init__(self, FA, chrom, chromLen, cacheSize=50000):
-		self.FA = FA
-		self.chrom = chrom
-		self.chromLen = chromLen
-		self.start = 0
+	def __init__(self, fasta_file, cacheSize=50000):
+		self.fasta_file = fasta_file
+		self.FA = FastaFile(fasta_file)
+		self.chroms = self.FA.references
+		self._get_offsets()
+		self.chrom_lens = {c:self.FA.get_reference_length(c) for c in self.chroms}
 		self.cacheSize = cacheSize
-		self.end = min(cacheSize, chromLen)
-		self.seq = self.FA.fetch(self.chrom, 0, self.end)
-	def fetch(self, pos, pos2):
-		assert(pos >= self.start)
-		if pos2 > self.end:
-			assert(pos2 <= self.chromLen)
-			self.start = pos
-			self.end = pos+self.cacheSize
-			self.seq = self.FA.fetch(self.chrom, self.start, self.end)
-		sI = pos-self.start
-		eI = pos2-self.start
-		retseq = self.seq[sI:eI]
-		return retseq
+		self.start = {c:0 for c in self.chroms}
+		self.end = {c:min(cacheSize, self.chrom_lens[c]) for c in self.chroms}
+		self.chrom_caches = {c:self.FA.fetch(c,0,self.end[c]) for c in self.chroms}
+	def __del__(self):
+		self.FA.close()
+	def _get_offsets(self):
+		self.chrom_offsets = {}
+		fai = '%s.fai'%(self.fasta_file)
+		with open(fai, 'r') as FAI:
+			for split_line in map(lambda x: x.rstrip('\n').split('\t'), FAI):
+				self.chrom_offsets[split_line[0]] = int(split_line[2])
+	def fetch(self, chrom, pos, pos2):
+		assert(pos2 <= self.chrom_lens[chrom])
+		if pos2-pos+1 >= self.cacheSize:
+			logger.debug("Region was too large for refcache, you should consider increasing the cache size to %i"%((pos2-pos1+1)*10))
+			return self.FA.fetch(chrom, pos, pos2)
+		if pos < self.start[chrom] or pos2 > self.end[chrom]:
+			self.start[chrom] = pos
+			self.end[chrom] = min(pos+self.cacheSize, self.chrom_lens[chrom])
+			self.chrom_caches[chrom] = self.FA.fetch(chrom, self.start[chrom], self.end[chrom])
+		assert(pos >= self.start[chrom])
+		sI = pos-self.start[chrom]
+		eI = pos2-self.start[chrom]
+		return self.chrom_caches[chrom][sI:eI]
 
 def bamIsSorted(inFile):
 	if not os.path.exists(inFile+".bai"):
@@ -256,23 +280,23 @@ def chromWorker(argList):
 		fileEXT = infile.split('.')[-1].upper()
 		if fileEXT == 'BAM':
 			# Read SAM with samtools
-			disp("Reading %s from %s with samtools"%(chrom, infile))
+			logger.info("Reading %s from %s with samtools"%(chrom, infile))
 			samflags = "-F 4"
 			if options.pair: samflags += " -f 2"
 			if options.unique: samflags += " -F 256"
 			if bamIsSorted(infile):
 				fin = sp.Popen("samtools view %s %s %s"%(samflags, infile, chrom), shell=True, stdout=sp.PIPE, stderr=sp.PIPE)
 			else:
-				disp("%s should have been presorted\n"%(infile))
+				logger.info("%s should have been presorted\n"%(infile))
 				return 0
 			get_alignment = get_sam_alignment
 		elif fileEXT == 'BSP':
 			# Read BSP with awk filter
-			disp("Reading %s from %s"%(chrom, infile))
+			logger.info("Reading %s from %s"%(chrom, infile))
 			fin = sp.Popen("awk '$5 == \"%s\"' %s"%(chrom, infile), shell=True, stdout=sp.PIPE, stderr=sp.PIPE)
 			get_alignment = get_bsp_alignment
 		else:
-			disp("%s should be either presorted bsp or bam\n"%(infile))
+			logger.info("%s should be either presorted bsp or bam\n"%(infile))
 			return 0
 		for line in ifilter(lambda x: x[0] != "@", fin.stdout):
 			map_info = get_alignment(line, options.unique, options.pair, \
@@ -290,11 +314,11 @@ def chromWorker(argList):
 		fin.stdout.close()
 		# Check for error messages
 		STDERR = fin.stderr.read()
-		if STDERR: disp("%s ERROR:\n%s"%(chrom, STDERR))
+		if STDERR: logger.error("%s ERROR:\n%s"%(chrom, STDERR))
 		fin.stderr.close()
-	disp("%s used %i reads"%(chrom, nmap))
+	logger.info("%s used %i reads"%(chrom, nmap))
 	if options.combine_CpG:
-		disp('combining CpG methylation from both strands of %s...'%(chrom,))
+		logger.info('combining CpG methylation from both strands of %s...'%(chrom,))
 		# TODO modify this to window across the chromosome instead of loading the whole thing
 		for m in re.finditer('CG', FA.fetch(chrom)):
 			pos = m.start()
@@ -318,7 +342,7 @@ def chromWorker(argList):
 		fout, outfile = sys.stdout, 'STDOUT'
 	else:
 		fout = open(options.outfile, 'a', 100000000)
-		disp('writing %s to %s ...' % (chrom, options.outfile))
+		logger.info('writing %s to %s ...' % (chrom, options.outfile))
 	if options.wigfile: 
 		fwig = open(options.wigfile, 'a')
 		fwig.write('variableStep chrom=%s span=%d\n' % (chrom, options.wigbin))
@@ -389,12 +413,9 @@ z95, z95sq = 1.96, 1.96 * 1.96
 def wilsonScore(ratio, d):
 	pmid = ratio + z95sq / (2.0 * d)
 	sd = z95 * ((ratio*(1.0-ratio)/d + z95sq/(4.0*d*d)) ** 0.5)
-	denorminator = 1.0 + z95sq / d
-	CIl, CIu = (pmid - sd) / denorminator, (pmid + sd) / denorminator
+	denominator = 1.0 + z95sq / d
+	CIl, CIu = (pmid - sd) / denominator, (pmid + sd) / denominator
 	return CIl, CIu
-
-def disp(txt, nt=0):
-    if not quiet: sys.stderr.write('[methratio] @%s \t%s\n'%(time.asctime(), txt))
 
 samFLAGS = 'pPuUrR12sfdS'
 def parseFLAG(intFlag):
