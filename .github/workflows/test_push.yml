@@ -27,6 +27,7 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install pysam
+        apt-get install -y samtools
     - name: Build BSMAPz
       run: |
         make -j 2 bsmapz
