@@ -35,6 +35,8 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ###############################################################################
 
+VERSION = "1.1.2"
+
 import sys, time, os, array, argparse, re, logging
 FORMAT = "[%(levelname)s - %(filename)s:%(lineno)s - %(funcName)s] %(message)s"
 logging.basicConfig(level=logging.INFO, format=FORMAT)
@@ -49,10 +51,13 @@ except:
 	izip = zip
 	ifilter = filter
 	maketrans = str.maketrans
+	xrange = range
 import subprocess as sp
 import multiprocessing as mp
 import multiprocessing.pool
 import pysam
+
+
 
 def main():
 	usage = "usage: %prog [options] BSMAP_MAPPING_FILES"
@@ -78,6 +83,7 @@ def main():
 	parser.add_argument("-N", "--np", type=int, metavar='NP', help="Maximum number of processes to use [%(default)s]", default=-1)
 	parser.add_argument("infiles", metavar="FILES", help="Files from BSMAP output [BAM|SAM|BSP]", nargs="+")
 	parser.add_argument('-v', '--verbose', action='store_true', help='Enable verbose logging')
+	parser.add_argument('-V', '--version', action='version', version='%(prog)s '+VERSION)
 	# Parse Options
 	options = parser.parse_args()
 	################################
@@ -85,7 +91,7 @@ def main():
 	################################
 	if options.quiet:
 		logger.setLevel(logging.WARN)
-	elif options.debug:
+	elif options.verbose:
 		logger.setLevel(logging.DEBUG)
 		logger.debug("DEBUG logging enabled")
 	else:
@@ -123,7 +129,7 @@ def main():
 	if options.wigfile: open(options.wigfile, 'w').close()
 	# Presort inputs
 	logger.info("Presorting inputs")
-	sortedFiles = map(lambda x: sortFile(x, N=options.np, M=options.mem), options.infiles)
+	sortedFiles = list(map(lambda x: sortFile(x, N=options.np, M=options.mem), options.infiles))
 	# Calculate memory requirements and limits
 	largestChromSize = max(chromDict.values())
 	maxMemChrom = 2*largestChromSize*4+largestChromSize
@@ -147,7 +153,7 @@ def main():
 		chromPool.close()
 		chromPool.join()
 	else:
-		ret = map(chromWorker, argList)
+		ret = list(map(chromWorker, argList))
 	# Calculate stats
 	nmap, nc, nd = (0, 0, 0)
 	for sChrom, retList in zip(sortedChroms, ret):
@@ -214,44 +220,47 @@ def sortFile(infile, N=1, M=1000):
 		sys.exit("methratio.py does not handle %s files\n"%(fileEXT))
 
 class refcache:
-	def __init__(self, fasta_file, cacheSize=50000):
-		self.fasta_file = fasta_file
-		self.FA = FastaFile(fasta_file)
-		self.chroms = self.FA.references
-		self._get_offsets()
-		self.chrom_lens = {c:self.FA.get_reference_length(c) for c in self.chroms}
+	def __init__(self, FA, chrom, chromLen, cacheSize=50000):
+		self.FA = FA
+		self.chrom = chrom
+		self.chromLen = chromLen
+		self.start = 0
 		self.cacheSize = cacheSize
-		self.start = {c:0 for c in self.chroms}
-		self.end = {c:min(cacheSize, self.chrom_lens[c]) for c in self.chroms}
-		self.chrom_caches = {c:self.FA.fetch(c,0,self.end[c]) for c in self.chroms}
-	def __del__(self):
-		self.FA.close()
-	def _get_offsets(self):
-		self.chrom_offsets = {}
-		fai = '%s.fai'%(self.fasta_file)
-		with open(fai, 'r') as FAI:
-			for split_line in map(lambda x: x.rstrip('\n').split('\t'), FAI):
-				self.chrom_offsets[split_line[0]] = int(split_line[2])
-	def fetch(self, chrom, pos, pos2):
-		assert(pos2 <= self.chrom_lens[chrom])
-		if pos2-pos+1 >= self.cacheSize:
-			logger.debug("Region was too large for refcache, you should consider increasing the cache size to %i"%((pos2-pos1+1)*10))
-			return self.FA.fetch(chrom, pos, pos2)
-		if pos < self.start[chrom] or pos2 > self.end[chrom]:
-			self.start[chrom] = pos
-			self.end[chrom] = min(pos+self.cacheSize, self.chrom_lens[chrom])
-			self.chrom_caches[chrom] = self.FA.fetch(chrom, self.start[chrom], self.end[chrom])
-		assert(pos >= self.start[chrom])
-		sI = pos-self.start[chrom]
-		eI = pos2-self.start[chrom]
-		return self.chrom_caches[chrom][sI:eI]
+		self.end = min(cacheSize, chromLen)
+		self.seq = self.FA.fetch(self.chrom, 0, self.end)
+		self.warned = False
+	def fetch(self, pos, pos2):
+		if pos < self.start:
+			if not self.warned:
+				logger.warn("Detected unsorted input - this will hurt performance")
+				self.warned = True
+			self.start = pos
+			self.end = pos+self.cacheSize
+			self.seq = self.FA.fetch(self.chrom, self.start, self.end)
+		elif pos2 > self.end:
+			assert(pos2 <= self.chromLen)
+			self.start = pos
+			self.end = pos+self.cacheSize
+			self.seq = self.FA.fetch(self.chrom, self.start, self.end)
+		sI = pos-self.start
+		eI = pos2-self.start
+		retseq = self.seq[sI:eI]
+		return retseq
 
 def bamIsSorted(inFile):
 	if not os.path.exists(inFile+".bai"):
 		return False
-	if 'coordinate' not in sp.check_output("samtools view -H %s"%(inFile), shell=True):
+	if 'coordinate' not in sp.check_output("samtools view -H %s"%(inFile), shell=True).decode('ascii'):
 		return False
 	return True
+
+def filterAt(line):
+	return line[0] != "@"
+class depthFilter:
+	def __init__(self, min_depth):
+		self.d0 = min_depth
+	def test(self, x):
+		return x[1] >= self.d0
 
 def chromWorker(argList):
 	chrom, chromSize, options, sortedFiles, pid = argList
@@ -285,7 +294,7 @@ def chromWorker(argList):
 			if options.pair: samflags += " -f 2"
 			if options.unique: samflags += " -F 256"
 			if bamIsSorted(infile):
-				fin = sp.Popen("samtools view %s %s %s"%(samflags, infile, chrom), shell=True, stdout=sp.PIPE, stderr=sp.PIPE)
+				fin = sp.Popen("LC_ALL=C samtools view %s %s %s"%(samflags, infile, chrom), shell=True, stdout=sp.PIPE, stderr=sp.PIPE)
 			else:
 				logger.info("%s should have been presorted\n"%(infile))
 				return 0
@@ -293,12 +302,13 @@ def chromWorker(argList):
 		elif fileEXT == 'BSP':
 			# Read BSP with awk filter
 			logger.info("Reading %s from %s"%(chrom, infile))
-			fin = sp.Popen("awk '$5 == \"%s\"' %s"%(chrom, infile), shell=True, stdout=sp.PIPE, stderr=sp.PIPE)
+			fin = sp.Popen("LC_ALL=C awk '$5 == \"%s\"' %s"%(chrom, infile), shell=True, stdout=sp.PIPE, stderr=sp.PIPE)
 			get_alignment = get_bsp_alignment
 		else:
 			logger.info("%s should be either presorted bsp or bam\n"%(infile))
 			return 0
-		for line in ifilter(lambda x: x[0] != "@", fin.stdout):
+		for bline in ifilter(filterAt, fin.stdout):
+			line = bline.decode('ascii')
 			map_info = get_alignment(line, options.unique, options.pair, \
 				options.rm_dup, options.trim_fillin, coverage, chromSize)
 			if not map_info: continue
@@ -350,7 +360,8 @@ def chromWorker(argList):
 	nc, nd, dep0 = 0, 0, options.min_depth
 	# Write output
 	indexedIter = izip(xrange(len(depth)), depth, meth, depth1, meth1)
-	filteredIter = ifilter(lambda x: x[1] >= dep0, indexedIter)
+	df = depthFilter(dep0)
+	filteredIter = ifilter(df.test, indexedIter)
 	for ret in p.imap(calcMeth, filteredIter, chunksize=1000):
 		if not ret: continue
 		retStr, i, d, m = ret
