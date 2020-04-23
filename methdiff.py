@@ -1,4 +1,7 @@
 #! /usr/bin/env python
+
+VERSION = 1.1.2
+
 import sys, time, os, array, optparse, math
 usage = "usage: %prog [options] <GROUP1_SAMPLE1,GROUP1_SAMPLE2,...> <GROUP2_SAMPLE1,GROUP2_SAMPLE2,...>"
 parser = optparse.OptionParser(usage=usage)
@@ -13,6 +16,7 @@ parser.add_option("-l", "--labels", dest="labels", metavar='LABELS', help="outpu
 parser.add_option("-m", "--min-depth", dest="min_depth", type="int", metavar='FOLD', help="minimal average coverage. [default: 1]", default=1.)
 parser.add_option("-s", "--strand", dest="strand", metavar='STRAND', help="which strand to process, [both|forward|reverse]. [default: both]", default='both')
 parser.add_option("-q", "--quiet", action="store_true", dest="quiet", help="don't print progress on stderr.", default=False)
+parser.add_argument('-V', '--version', action='version', version='%(prog)s '+VERSION)
 
 options, infiles = parser.parse_args()
 
