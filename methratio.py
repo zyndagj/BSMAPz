@@ -45,6 +45,7 @@ try:
 	# py2
 	from itertools import compress, ifilter, izip
 	from string import maketrans
+	py=2
 except:
 	# py3
 	from itertools import compress
@@ -52,6 +53,7 @@ except:
 	ifilter = filter
 	maketrans = str.maketrans
 	xrange = range
+	py=3
 import subprocess as sp
 import multiprocessing as mp
 import multiprocessing.pool
@@ -175,14 +177,21 @@ def main():
 #			os.remove(f)
 
 # Can't use daemon processes in the main pool
-class NoDaemonProcess(mp.Process):
+class NoDaemonProcess2(mp.Process):
 	def _get_daemon(self):
 		return False
 	def _set_daemon(self, value):
 		pass
 	daemon = property(_get_daemon, _set_daemon)
+class NoDaemonProcess3(mp.Process):
+	@property
+	def daemon(self):
+		return False
+	@daemon.setter
+	def daemon(self, value):
+		pass
 class ChromPool(multiprocessing.pool.Pool):
-    Process = NoDaemonProcess
+	Process = NoDaemonProcess2 if py == 2 else NoDaemonProcess3
 
 def sortFile(infile, N=1, M=1000):
 	'''
