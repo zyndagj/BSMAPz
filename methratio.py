@@ -2,7 +2,7 @@
 
 ###############################################################################
 # Author: Greg Zynda
-# Last Modified: 04/25/2019
+# Last Modified: 06/03/2020
 ###############################################################################
 # BSD 3-Clause License
 # 
@@ -210,9 +210,16 @@ class refcache:
 		self.cacheSize = cacheSize
 		self.end = min(cacheSize, chromLen)
 		self.seq = self.FA.fetch(self.chrom, 0, self.end)
+		self.warned = False
 	def fetch(self, pos, pos2):
-		assert(pos >= self.start)
-		if pos2 > self.end:
+		if pos < self.start:
+			if not self.warned:
+				logger.warn("Detected unsorted input - this will hurt performance")
+				self.warned = True
+			self.start = pos
+			self.end = pos+self.cacheSize
+			self.seq = self.FA.fetch(self.chrom, self.start, self.end)
+		elif pos2 > self.end:
 			assert(pos2 <= self.chromLen)
 			self.start = pos
 			self.end = pos+self.cacheSize
