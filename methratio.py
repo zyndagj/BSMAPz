@@ -2,7 +2,7 @@
 
 ###############################################################################
 # Author: Greg Zynda
-# Last Modified: 04/25/2019
+# Last Modified: 06/04/2020
 ###############################################################################
 # BSD 3-Clause License
 # 
@@ -75,6 +75,7 @@ def main():
 	parser.add_argument("-f", "--full", action="store_true", help="Report full context (CHG -> CAG)")
 	parser.add_argument("-M", "--mem", type=int, metavar='MB', help="Maximum memory in megabytes to use [%(default)s]", default=-1)
 	parser.add_argument("-N", "--np", type=int, metavar='NP', help="Maximum number of processes to use [%(default)s]", default=-1)
+	parser.add_argument('--version', action='version', version='%(prog)s development')
 	parser.add_argument("infiles", metavar="FILES", help="Files from BSMAP output [BAM|SAM|BSP]", nargs="+")
 	# Parse Options
 	options = parser.parse_args()
@@ -210,9 +211,16 @@ class refcache:
 		self.cacheSize = cacheSize
 		self.end = min(cacheSize, chromLen)
 		self.seq = self.FA.fetch(self.chrom, 0, self.end)
+		self.warned = False
 	def fetch(self, pos, pos2):
-		assert(pos >= self.start)
-		if pos2 > self.end:
+		if pos < self.start:
+			if not self.warned:
+				logger.warn("Detected unsorted input - this will hurt performance")
+				self.warned = True
+			self.start = pos
+			self.end = pos+self.cacheSize
+			self.seq = self.FA.fetch(self.chrom, self.start, self.end)
+		elif pos2 > self.end:
 			assert(pos2 <= self.chromLen)
 			self.start = pos
 			self.end = pos+self.cacheSize
