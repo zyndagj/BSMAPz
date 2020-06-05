@@ -30,6 +30,6 @@ jobs:
       run: |
         conda install conda-build anaconda-client
         echo Got tag $SOURCE_TAG
-        sed -i "s/development/${SOURCE_TAG}/" main.cpp methratio.py conda/meta.yaml
+        sed -i "" -e "s/development/${SOURCE_TAG}/" main.cpp methratio.py conda/meta.yaml
         make conda
         anaconda -t ${{ secrets.CONDA_TOKEN }} upload ${CONDA_PREFIX}/conda-bld/*/bsmapz-${SOURCE_TAG}*
