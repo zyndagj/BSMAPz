@@ -5,10 +5,8 @@ name: Build and test
 
 on:
   push:
-    tags-ignore: [ ** ]
     branches: [ master, development ]
   pull_request:
-    tags-ignore: [ ** ]
     branches: [ master, development ]
 
 jobs:
