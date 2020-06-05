@@ -50,11 +50,13 @@ jobs:
     ############ Test ##################
   test:
     needs: build
+    steps:
     - name: Test BSMAPz
       run: make test
     ############ Release ###############
   release:
     needs: test
+    steps:
     - name: Get tag
       id: tag
       run: echo ::set-output name=SOURCE_TAG::${GITHUB_REF#refs/tags/}

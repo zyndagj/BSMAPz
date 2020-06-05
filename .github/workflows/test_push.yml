@@ -52,5 +52,6 @@ jobs:
     ############ Test ##################
   test:
     needs: build
+    steps:
     - name: Test BSMAPz
       run: make test
