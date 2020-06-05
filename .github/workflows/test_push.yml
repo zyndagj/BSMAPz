@@ -64,7 +64,7 @@ jobs:
       with:
         update-conda: true
         activate-conda: true
-	python-version: ${{ matrix.python-version }}
+        python-version: ${{ matrix.python-version }}
     - name: Build conda package
       if: ${{ steps.tag.outputs.SOURCE_TAG != '' }}
       env:
