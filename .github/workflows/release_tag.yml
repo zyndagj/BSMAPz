@@ -5,8 +5,8 @@ name: Build, test, and release
 
 on:
   push:
-    branches: [ master, development ]
     tags: [ * ]
+    branches: [ master, development ]
 
 jobs:
   build:
