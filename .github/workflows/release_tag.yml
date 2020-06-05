@@ -15,6 +15,12 @@ jobs:
         os: [ubuntu-latest, macos-latest]
     steps:
     - uses: actions/checkout@v2
+    ############ Cache #################
+    - name: Cache conda
+        uses: actions/cache@v1
+        with:
+          path: ~/conda_pkgs_dir
+          key: ${{ runner.os }}-conda-${{ hashFiles('conda/*') }}
     ############ Release ###############
     - name: Get tag
       id: tag
@@ -38,6 +44,7 @@ jobs:
       env:
         SOURCE_TAG: ${{ steps.tag.outputs.SOURCE_TAG }}
       run: |
+	env | grep "CONDA"
         conda install conda-build anaconda-client
         echo Got tag $SOURCE_TAG
         make conda

@@ -20,9 +20,7 @@ source:
 
 requirements:
   build:
-    - python=2.7
     - {{ compiler('cxx') }}
-    - zlib
     - samtools
     - pysam
     - conda-verify
@@ -31,6 +29,7 @@ requirements:
     - python=2.7
   run:
     - python=2.7
+    - zlib
     - samtools
     - pysam
 
