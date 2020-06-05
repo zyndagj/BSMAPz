@@ -26,9 +26,9 @@ requirements:
     - conda-verify
   host:
     - zlib
-    - python=2.7
+    - python 2.7
   run:
-    - python=2.7
+    - python 2.7
     - zlib
     - samtools
     - pysam
