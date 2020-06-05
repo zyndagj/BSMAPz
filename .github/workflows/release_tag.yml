@@ -24,12 +24,21 @@ jobs:
       with:
         update-conda: false
         activate-conda: true
+    - name: Replace version with tag - macos
+      if: ${{ matrix.os == 'macos-latest' }}
+      env:
+        SOURCE_TAG: ${{ steps.tag.outputs.SOURCE_TAG }}
+      run: sed -i "" -e "s/development/${SOURCE_TAG}/" main.cpp methratio.py conda/meta.yaml
+    - name: Replace version with tag - linux
+      if: ${{ matrix.os == 'ubuntu-latest' }}
+      env:
+        SOURCE_TAG: ${{ steps.tag.outputs.SOURCE_TAG }}
+      run: sed -i "s/development/${SOURCE_TAG}/" main.cpp methratio.py conda/meta.yaml
     - name: Build conda package
       env:
         SOURCE_TAG: ${{ steps.tag.outputs.SOURCE_TAG }}
       run: |
         conda install conda-build anaconda-client
         echo Got tag $SOURCE_TAG
-        sed -i "" -e "s/development/${SOURCE_TAG}/" main.cpp methratio.py conda/meta.yaml
         make conda
         anaconda -t ${{ secrets.CONDA_TOKEN }} upload ${CONDA_PREFIX}/conda-bld/*/bsmapz-${SOURCE_TAG}*
