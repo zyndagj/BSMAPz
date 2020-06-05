@@ -20,14 +20,16 @@ jobs:
       if: ${{ steps.tag.outputs.SOURCE_TAG != '' }}
       uses: s-weigand/setup-conda@v1
       with:
+        update-conda: false
         activate-conda: true
     - name: Build conda package
       if: ${{ steps.tag.outputs.SOURCE_TAG != '' }}
       env:
         SOURCE_TAG: ${{ steps.tag.outputs.SOURCE_TAG }}
       run: |
+        conda config --set anaconda_upload yes
         conda install conda-build anaconda-client
+        anaconda -t ${{ secrets.CONDA_TOKEN }} login
         echo Got tag $SOURCE_TAG
         sed -i "s/development/${SOURCE_TAG}/" main.cpp methratio.py conda/meta.yaml
         make conda
-        cd conda && anaconda -t ${{ secrets.CONDA_TOKEN }} upload
