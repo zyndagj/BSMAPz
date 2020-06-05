@@ -58,12 +58,15 @@ jobs:
     - name: Get tag
       id: tag
       run: echo ::set-output name=SOURCE_TAG::${GITHUB_REF#refs/tags/}
-    - name: Build base image
+    - name: Install conda
       if: ${{ steps.tag.outputs.SOURCE_TAG != '' }}
       uses: s-weigand/setup-conda@v1
       with:
         update-conda: true
         activate-conda: true
+	python-version: ${{ matrix.python-version }}
+    - name: Build conda package
+      if: ${{ steps.tag.outputs.SOURCE_TAG != '' }}
       env:
         SOURCE_TAG: ${{ steps.tag.outputs.SOURCE_TAG }}
       run: |
