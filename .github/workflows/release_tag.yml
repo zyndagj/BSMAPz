@@ -44,7 +44,7 @@ jobs:
       env:
         SOURCE_TAG: ${{ steps.tag.outputs.SOURCE_TAG }}
       run: |
-	env | grep "CONDA"
+        env | grep "CONDA"
         conda install conda-build anaconda-client
         echo Got tag $SOURCE_TAG
         make conda
