@@ -5,11 +5,11 @@ name: Build and test
 
 on:
   push:
-    branches: [ master, development ]
     tags-ignore: [ ** ]
+    branches: [ master, development ]
   pull_request:
-    branches: [ master, development ]
     tags-ignore: [ ** ]
+    branches: [ master, development ]
 
 jobs:
   build:
