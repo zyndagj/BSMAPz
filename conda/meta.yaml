@@ -22,15 +22,15 @@ requirements:
   build:
     - {{ compiler('cxx') }}
     - zlib
-    - python 2.7
+    - python
     - samtools
     - pysam
     - conda-verify
   host:
     - zlib
-    - python 2.7
+    - python
   run:
-    - python 2.7
+    - python
     - zlib
     - samtools
     - pysam

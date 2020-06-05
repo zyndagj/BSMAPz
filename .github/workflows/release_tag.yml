@@ -13,6 +13,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest]
+        python-version: [ 2.7 ]
     steps:
     - uses: actions/checkout@v2
     ############ Release ###############
@@ -41,5 +42,5 @@ jobs:
         env | grep "CONDA"
         conda install conda-build anaconda-client
         echo Got tag $SOURCE_TAG
-        make conda
-        anaconda -t ${{ secrets.CONDA_TOKEN }} upload ${CONDA_PREFIX}/conda-bld/*/bsmapz-${SOURCE_TAG}*
+        cd conda && conda build --python ${{ matrix.python-version }} -c bioconda -c conda-forge -c defaults .
+        anaconda -t ${{ secrets.CONDA_TOKEN }} upload ${CONDA}/conda-bld/*/bsmapz-${SOURCE_TAG}*
