@@ -59,6 +59,15 @@ jobs:
       id: tag
       run: echo ::set-output name=SOURCE_TAG::${GITHUB_REF#refs/tags/}
     - name: Build base image
-      if: ${{ steps.branch_name.outputs.SOURCE_TAG != '' }}
+      if: ${{ steps.tag.outputs.SOURCE_TAG != '' }}
+      uses: s-weigand/setup-conda@v1
+      with:
+        update-conda: true
+        activate-conda: true
+      env:
+        SOURCE_TAG: ${{ steps.tag.outputs.SOURCE_TAG }}
       run: |
-        echo Got tag ${{ steps.branch_name.outputs.SOURCE_TAG }}
+        conda install conda-build
+        echo Got tag $SOURCE_TAG
+        sed -i "s/development/${SOURCE_TAG}/" main.cpp methratio.py conda/meta.yaml
+        make conda

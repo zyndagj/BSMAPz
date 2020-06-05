@@ -2,7 +2,7 @@
 
 ###############################################################################
 # Author: Greg Zynda
-# Last Modified: 06/03/2020
+# Last Modified: 06/04/2020
 ###############################################################################
 # BSD 3-Clause License
 # 
@@ -75,6 +75,7 @@ def main():
 	parser.add_argument("-f", "--full", action="store_true", help="Report full context (CHG -> CAG)")
 	parser.add_argument("-M", "--mem", type=int, metavar='MB', help="Maximum memory in megabytes to use [%(default)s]", default=-1)
 	parser.add_argument("-N", "--np", type=int, metavar='NP', help="Maximum number of processes to use [%(default)s]", default=-1)
+	parser.add_argument('--version', action='version', version='%(prog)s development')
 	parser.add_argument("infiles", metavar="FILES", help="Files from BSMAP output [BAM|SAM|BSP]", nargs="+")
 	# Parse Options
 	options = parser.parse_args()
