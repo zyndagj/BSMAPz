@@ -70,7 +70,8 @@ jobs:
       env:
         SOURCE_TAG: ${{ steps.tag.outputs.SOURCE_TAG }}
       run: |
-        conda install conda-build
+        conda install conda-build anaconda-client
         echo Got tag $SOURCE_TAG
         sed -i "s/development/${SOURCE_TAG}/" main.cpp methratio.py conda/meta.yaml
         make conda
+        cd conda && anaconda -t ${{ secrets.CONDA_TOKEN }} upload
