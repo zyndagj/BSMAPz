@@ -49,8 +49,8 @@ jobs:
     - name: Build BSMAPz
       run: |
         make -j 2 bsmapz
+    ############ Test ##################
   test:
     needs: build
-    ############ Test ##################
     - name: Test BSMAPz
       run: make test
