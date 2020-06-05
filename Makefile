@@ -67,7 +67,7 @@ test_data/test_paired.bsp test_data/test_paired.sam test_data/test_paired.bam: |
 	./bsmapz -a test_data/simulated_1.fastq -b test_data/simulated_2.fastq -z 33 -p 2 -q 20 -d $(REF) -S 77345 -w 1000 -o $@ 2> $@.log
 	@echo OK - Finished aligning $@
 test_data/test_paired.%.mr: test_data/test_paired.%
-	python methratio.py -z -r -d $(REF) -o $@ $< &> $@.log
+	python methratio.py -z -r -d $(REF) -o $@ $< &> $@.log || { cat $@.log; exit 1; }
 	@echo OK - Finished calling methylation in $@
 	diff -q $(OP) $@
 	@echo OK - $@ matches $(OP)
