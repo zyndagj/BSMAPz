@@ -26,7 +26,7 @@ jobs:
         python-version: ${{ matrix.python-version }}
     ############ Cache #################
     - name: pip cache Linux
-    - uses: actions/cache@v2
+      uses: actions/cache@v2
       if: startsWith(runner.os, 'Linux')
       with:
         path: ~/.cache/pip
@@ -34,7 +34,7 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-pip-
     - name: pip cache macOS
-    - uses: actions/cache@v2
+      uses: actions/cache@v2
       if: startsWith(runner.os, 'macOS')
       with:
         path: ~/Library/Caches/pip
