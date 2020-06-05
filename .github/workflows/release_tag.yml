@@ -1,15 +1,12 @@
 # This workflow will install Python dependencies, run tests and lint with a variety of Python versions
 # For more information see: https://help.github.com/actions/language-and-framework-guides/using-python-with-github-actions
 
-name: Build and test
+name: Build, test, and release
 
 on:
   push:
     branches: [ master, development ]
-    tags-ignore: [ * ]
-  pull_request:
-    branches: [ master, development ]
-    tags-ignore: [ * ]
+    tags: [ * ]
 
 jobs:
   build:
@@ -56,3 +53,26 @@ jobs:
     ############ Test ##################
     - name: Test BSMAPz
       run: make test
+  release:
+    needs: test
+    ############ Release ###############
+    - name: Get tag
+      id: tag
+      run: echo ::set-output name=SOURCE_TAG::${GITHUB_REF#refs/tags/}
+    - name: Install conda
+      if: ${{ steps.tag.outputs.SOURCE_TAG != '' }}
+      uses: s-weigand/setup-conda@v1
+      with:
+        update-conda: true
+        activate-conda: true
+        python-version: ${{ matrix.python-version }}
+    - name: Build conda package
+      if: ${{ steps.tag.outputs.SOURCE_TAG != '' }}
+      env:
+        SOURCE_TAG: ${{ steps.tag.outputs.SOURCE_TAG }}
+      run: |
+        conda install conda-build anaconda-client
+        echo Got tag $SOURCE_TAG
+        sed -i "s/development/${SOURCE_TAG}/" main.cpp methratio.py conda/meta.yaml
+        make conda
+        cd conda && anaconda -t ${{ secrets.CONDA_TOKEN }} upload
