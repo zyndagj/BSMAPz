@@ -76,11 +76,16 @@ test_data/test_paired_int.bam.mr: test_data/test_paired.bam
 	@echo OK - Finished calling methylation in $@
 	diff -q $(OP) $@
 	@echo OK - $@ matches $(OP)
+test_data/test_sam2bam.sam: test_data/test_paired.sam
+	cd $(dir $<) && ln -s $(notdir $<) $(notdir $@)
+test_data/test_sam2bam.bam: test_data/test_sam2bam.sam
+	bash sam2bam.sh $< &> $@.log
+	@echo OK - Finished testing sam2bam.sh
 
-MR = $(shell echo test_data/test_{paired,single,single_compressed}.{sam.bam,bam,sam,bsp}.mr test_data/test_paired_int.bam.mr)
+MR = $(shell echo test_data/test_{paired,single,single_compressed}.{sam.bam,bam,sam,bsp}.mr test_data/{test_paired_int.bam.mr,test_sam2bam.bam})
 test: | bsmapz $(MR)
 test-clean:
-	rm -f test_data/test_{single,paired}*
+	rm -f test_data/test_{single,paired,sam2bam}*
 
 clean:
 	rm -f *.o *~ bsmapz

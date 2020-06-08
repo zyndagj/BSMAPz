@@ -3,6 +3,7 @@
 bsmapz
 *.a
 test_data/*log
+test_data/*sam2bam*
 test_data/test_paired*bam*
 test_data/test_single*bam*
 test_data/test_paired*bsp*
