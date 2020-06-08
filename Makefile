@@ -71,8 +71,13 @@ test_data/test_paired.%.mr: test_data/test_paired.%
 	@echo OK - Finished calling methylation in $@
 	diff -q $(OP) $@
 	@echo OK - $@ matches $(OP)
+test_data/test_paired_int.bam.mr: test_data/test_paired.bam
+	python methratio.py -z -I -r -d $(REF) -o $@ $< &> $@.log || { cat $@.log; exit 1; }
+	@echo OK - Finished calling methylation in $@
+	diff -q $(OP) $@
+	@echo OK - $@ matches $(OP)
 
-MR = $(shell echo test_data/test_{paired,single,single_compressed}.{sam.bam,bam,sam,bsp}.mr)
+MR = $(shell echo test_data/test_{paired,single,single_compressed}.{sam.bam,bam,sam,bsp}.mr test_data/test_paired_int.bam.mr)
 test: | bsmapz $(MR)
 test-clean:
 	rm -f test_data/test_{single,paired}*

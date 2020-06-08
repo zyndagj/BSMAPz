@@ -2,7 +2,7 @@
 
 ###############################################################################
 # Author: Greg Zynda
-# Last Modified: 06/04/2020
+# Last Modified: 06/08/2020
 ###############################################################################
 # BSD 3-Clause License
 # 
@@ -73,6 +73,7 @@ def main():
 	parser.add_argument("-i", "--ct-snp", dest="CT_SNP", help='how to handle CT SNP ("no-action", "correct", "skip"), default: "correct".', default="correct")
 	parser.add_argument("-x", "--context", dest="context", metavar='TYPE', help="methylation pattern type [CG|CHG|CHH], multiple types separated by ','. [default: all]", default='')
 	parser.add_argument("-f", "--full", action="store_true", help="Report full context (CHG -> CAG)")
+	parser.add_argument("-I", "--int", action="store_true", help="Store counts as integers instead of shorts to support deeper coverage (2x memory)")
 	parser.add_argument("-M", "--mem", type=int, metavar='MB', help="Maximum memory in megabytes to use [%(default)s]", default=-1)
 	parser.add_argument("-N", "--np", type=int, metavar='NP', help="Maximum number of processes to use [%(default)s]", default=-1)
 	parser.add_argument('--version', action='version', version='%(prog)s development')
@@ -115,7 +116,10 @@ def main():
 	sortedFiles = map(lambda x: sortFile(x, N=options.np, M=options.mem), options.infiles)
 	# Calculate memory requirements and limits
 	largestChromSize = max(chromDict.values())
-	maxMemChrom = 2*largestChromSize*4+largestChromSize
+	if options.int:
+		maxMemChrom = 4*largestChromSize*4+largestChromSize
+	else:
+		maxMemChrom = 2*largestChromSize*4+largestChromSize
 	maxMemChromMB = maxMemChrom/(1024**2)
 	if options.mem < maxMemChromMB: sys.exit("methratio.py needs at least %i MB of memory to process this reference\n"%(maxMemChromMB))
 	if maxMemChromMB:
@@ -126,7 +130,7 @@ def main():
 	# Create shared array for synchronization
 	global syncArray
 	syncArray = mp.RawArray('B', [0]*len(chromDict))
-	argList = [(chrom, chromDict[chrom], options, sortedFiles, pid) for pid, chrom in enumerate(sortedChroms)]
+	argList = [(chrom, chromDict[chrom], options, sortedFiles, options.int, pid) for pid, chrom in enumerate(sortedChroms)]
 	if maxChromProcs > 1:
 		# Create worker pool
 		chromPool = ChromPool(maxChromProcs)
@@ -238,14 +242,16 @@ def bamIsSorted(inFile):
 	return True
 
 def chromWorker(argList):
-	chrom, chromSize, options, sortedFiles, pid = argList
+	chrom, chromSize, options, sortedFiles, useInt, pid = argList
 	# load chrom with pysam
 	FA=pysam.FastaFile(options.reffile)
 	# Create process pool before allocation
 	p = mp.Pool(min(4,options.np), initializer=initWorker, initargs=(options, chrom))
+	# Array data type
+	dt = 'I' if useInt else 'H'
 	# allocate arrays
-	meth = array.array('H',[0])*chromSize
-	depth = array.array('H',[0])*chromSize
+	meth = array.array(dt,[0])*chromSize
+	depth = array.array(dt,[0])*chromSize
 	# create coverage variable
 	if options.rm_dup:
 		coverage = array.array('B',[0])*chromSize
@@ -253,8 +259,8 @@ def chromWorker(argList):
 		# breaks if it can't be passsed
 		coverage = []
 	if options.CT_SNP:
-		meth1 = array.array('H',[0])*chromSize
-		depth1 = array.array('H',[0])*chromSize
+		meth1 = array.array(dt,[0])*chromSize
+		depth1 = array.array(dt,[0])*chromSize
 	# Reference cache
 	refCache = refcache(FA, chrom, chromSize)
 	BS_conversion = {'+': ('C','T','G','A'), '-': ('G','A','C','T')}
