@@ -1,5 +1,5 @@
 {% set name = "BSMAPz" %}
-{% set version = "1.1.1" %}
+{% set version = "development" %}
 
 about:
   home: https://github.com/zyndagj/BSMAPz
@@ -20,17 +20,18 @@ source:
 
 requirements:
   build:
-    - python=2.7
     - {{ compiler('cxx') }}
     - zlib
+    - python
     - samtools
     - pysam
     - conda-verify
   host:
     - zlib
-    - python=2.7
+    - python
   run:
-    - python=2.7
+    - python
+    - zlib
     - samtools
     - pysam
 

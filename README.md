@@ -50,6 +50,15 @@ Requirements:
 
 * samtools (on PATH)
 * pysam
+* zlib
+
+### Conda installation
+
+```
+$ conda install -c defaults -c bioconda -c conda-forge -c zyndagj bsmapz
+```
+
+### Building from source
 
 First, clone the source code:
 ```

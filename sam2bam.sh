@@ -18,7 +18,7 @@ if [ $? -ne 0 ]; then
 	exit 1
 fi
 echo "Sorting BAM ..."
-samtools sort -o $tmpbam ${outbam%.*}
+samtools sort -o $outbam $tmpbam
 if [ $? -ne 0 ]; then
 	echo "BAM file sorting not sucessful."
 	echo "$outbam is in unsorted BAM format".

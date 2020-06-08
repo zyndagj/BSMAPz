@@ -67,15 +67,25 @@ test_data/test_paired.bsp test_data/test_paired.sam test_data/test_paired.bam: |
 	./bsmapz -a test_data/simulated_1.fastq -b test_data/simulated_2.fastq -z 33 -p 2 -q 20 -d $(REF) -S 77345 -w 1000 -o $@ 2> $@.log
 	@echo OK - Finished aligning $@
 test_data/test_paired.%.mr: test_data/test_paired.%
-	python methratio.py -z -r -d $(REF) -o $@ $< &> $@.log
+	python methratio.py -z -r -d $(REF) -o $@ $< &> $@.log || { cat $@.log; exit 1; }
 	@echo OK - Finished calling methylation in $@
 	diff -q $(OP) $@
 	@echo OK - $@ matches $(OP)
+test_data/test_paired_int.bam.mr: test_data/test_paired.bam
+	python methratio.py -z -I -r -d $(REF) -o $@ $< &> $@.log || { cat $@.log; exit 1; }
+	@echo OK - Finished calling methylation in $@
+	diff -q $(OP) $@
+	@echo OK - $@ matches $(OP)
+test_data/test_sam2bam.sam: test_data/test_paired.sam
+	cd $(dir $<) && ln -s $(notdir $<) $(notdir $@)
+test_data/test_sam2bam.bam: test_data/test_sam2bam.sam
+	bash sam2bam.sh $< &> $@.log
+	@echo OK - Finished testing sam2bam.sh
 
-MR = $(shell echo test_data/test_{paired,single,single_compressed}.{sam.bam,bam,sam,bsp}.mr)
+MR = $(shell echo test_data/test_{paired,single,single_compressed}.{sam.bam,bam,sam,bsp}.mr test_data/{test_paired_int.bam.mr,test_sam2bam.bam})
 test: | bsmapz $(MR)
 test-clean:
-	rm -f test_data/test_{single,paired}*
+	rm -f test_data/test_{single,paired,sam2bam}*
 
 clean:
 	rm -f *.o *~ bsmapz
