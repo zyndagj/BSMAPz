@@ -71,6 +71,21 @@ test_data/test_paired.%.mr: test_data/test_paired.%
 	@echo OK - Finished calling methylation in $@
 	diff -q $(OP) $@
 	@echo OK - $@ matches $(OP)
+test_data/test_paired_combine.%.mr: test_data/test_paired.%
+	python methratio.py -g -z -r -d $(REF) -o $@ $< &> $@.log || { cat $@.log; exit 1; }
+	@echo OK - Finished calling methylation in $@
+	#diff -q $(OP) $@
+	#@echo OK - $@ matches $(OP)
+test_data/test_paired_type.%.mr: test_data/test_paired.%
+	python methratio.py -x CG -z -r -d $(REF) -o $@ $< &> $@.log || { cat $@.log; exit 1; }
+	@echo OK - Finished calling methylation in $@
+	#diff -q $(OP) $@
+	#@echo OK - $@ matches $(OP)
+test_data/test_paired_ct.%.mr: test_data/test_paired.%
+	python methratio.py -i no-action -z -r -d $(REF) -o $@ $< &> $@.log || { cat $@.log; exit 1; }
+	@echo OK - Finished calling methylation in $@
+	diff -q test_data/original_paired_ct.bam.mr $@
+	@echo OK - $@ matches test_data/original_paired_ct.bam.mr
 test_data/test_paired_int.bam.mr: test_data/test_paired.bam
 	python methratio.py -z -I -r -d $(REF) -o $@ $< &> $@.log || { cat $@.log; exit 1; }
 	@echo OK - Finished calling methylation in $@
@@ -82,7 +97,7 @@ test_data/test_sam2bam.bam: test_data/test_sam2bam.sam
 	bash sam2bam.sh $< &> $@.log
 	@echo OK - Finished testing sam2bam.sh
 
-MR = $(shell echo test_data/test_{paired,single,single_compressed}.{sam.bam,bam,sam,bsp}.mr test_data/{test_paired_int.bam.mr,test_sam2bam.bam})
+MR = $(shell echo test_data/test_{paired,single,single_compressed}.{sam.bam,bam,sam,bsp}.mr test_data/test_paired_{ct,type,combine,int}.bam.mr test_data/test_sam2bam.bam)
 test: | bsmapz $(MR)
 test-clean:
 	rm -f test_data/test_{single,paired,sam2bam}*
