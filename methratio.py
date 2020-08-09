@@ -219,7 +219,7 @@ class refcache:
 	def fetch(self, pos, pos2):
 		if pos < self.start:
 			if not self.warned:
-				logger.warn("Detected unsorted input - this will hurt performance")
+				disp("Detected unsorted input - this will hurt performance")
 				self.warned = True
 			self.start = pos
 			self.end = pos+self.cacheSize
@@ -298,9 +298,10 @@ def chromWorker(argList):
 			assert(len(refseq) == len(seq))
 			nmap += 1
 			match, convert, rc_match, rc_convert = BS_conversion[strand]
-			searchFunc(refseq, seq, depth, meth, convert, match, pos)
-			if options.CT_SNP == 0: continue
-			searchFunc(refseq, seq, depth1, meth1, rc_convert, rc_match, pos)
+			if options.CT_SNP > 0:
+				searchFunc(refseq, seq, depth1, meth1, rc_convert, rc_match, pos)
+			else:
+				searchFunc(refseq, seq, depth, meth, convert, match, pos)
 		fin.stdout.close()
 		# Check for error messages
 		STDERR = fin.stderr.read()
@@ -339,7 +340,10 @@ def chromWorker(argList):
 		bin = wigd = wigm = 0
 	nc, nd, dep0 = 0, 0, options.min_depth
 	# Write output
-	indexedIter = izip(xrange(len(depth)), depth, meth, depth1, meth1)
+	if options.CT_SNP > 0:
+		indexedIter = izip(xrange(len(depth)), depth, meth, depth1, meth1)
+	else:
+		indexedIter = izip(xrange(len(depth)), depth, meth)
 	filteredIter = ifilter(lambda x: x[1] >= dep0, indexedIter)
 	for ret in p.imap(calcMeth, filteredIter, chunksize=1000):
 		if not ret: continue
@@ -367,13 +371,15 @@ def chromWorker(argList):
 def calcMeth(argList):
 	global options
 	global chrom
-	i, dd, m, d1, m1 = argList
 	if options.CT_SNP > 0:
+		i, dd, m, d1, m1 = argList
 		if m1 != d1:
 			if options.CT_SNP == 2: return 0
 			d = float(dd) * m1 / d1
 		else: d = float(dd)
-	else: d = float(dd)
+	else:
+		i, dd, m = argList
+		d = float(dd)
 	strand, seq = getContext(FA, chrom, i, options.full)
 	if not strand: return 0
 	if len(options.context) > 0:
@@ -381,7 +387,7 @@ def calcMeth(argList):
 	try: ratio = min(m, d) / d
 	except ZeroDivisionError: return 0
 	CIl, CIu = wilsonScore(ratio, d)
-	if options.CT_SNP:
+	if options.CT_SNP > 0:
 		vartup = (chrom, i+1, strand, seq, ratio, d, m, dd, m1, d1, CIl, CIu)
 		retStr = '%s\t%d\t%c\t%s\t%.3f\t%.2f\t%d\t%d\t%d\t%d\t%.3f\t%.3f\n' % vartup
 	else:
