@@ -258,7 +258,7 @@ def chromWorker(argList):
 	else:
 		# breaks if it can't be passsed
 		coverage = []
-	if options.CT_SNP:
+	if options.CT_SNP > 0:
 		meth1 = array.array(dt,[0])*chromSize
 		depth1 = array.array(dt,[0])*chromSize
 	# Reference cache
@@ -298,10 +298,9 @@ def chromWorker(argList):
 			assert(len(refseq) == len(seq))
 			nmap += 1
 			match, convert, rc_match, rc_convert = BS_conversion[strand]
+			searchFunc(refseq, seq, depth, meth, convert, match, pos)
 			if options.CT_SNP > 0:
 				searchFunc(refseq, seq, depth1, meth1, rc_convert, rc_match, pos)
-			else:
-				searchFunc(refseq, seq, depth, meth, convert, match, pos)
 		fin.stdout.close()
 		# Check for error messages
 		STDERR = fin.stderr.read()
